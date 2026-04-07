@@ -14,6 +14,7 @@ const CONFIG = {
             EXAMPLE_EVENT: "EXAMPLE_EVENT",
 
             START_GAME: 'START_GAME',
+            LOAD_GAME: 'LOAD_GAME',
         },
         TRIGGERS: {
             EXAMPLE_TRIGGER: "EXAMPLE_TRIGGER",
@@ -30,6 +31,7 @@ const CONFIG = {
         REGISTRATION: 'REGISTRATION',
         LOGIN: 'LOGIN',
         LOGOUT: 'LOGOUT',
+        RECONNECT: 'RECONNECT',
 
         CREATE_LOBBY: 'CREATE_LOBBY',
         DELETE_LOBBY: 'DELETE_LOBBY',
@@ -70,6 +72,7 @@ const CONFIG = {
 
         },
         BIO_REACTOR_SMALL: {
+            TYPE: "small_reactor",
             HP: 20,
             SIZE: 1,
             CONSUMPTION: 1, // потребление ЭНЕРГИИ ИЛИ ЖИРА
