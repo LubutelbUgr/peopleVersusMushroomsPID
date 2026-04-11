@@ -13,38 +13,60 @@ interface UserManagerOptions {
     common: any;
 }
 
+interface RegistrationData {
+    name?: string;
+    password?: string;
+    passwordRepeat?: string;
+}
+
+interface LoginData {
+    name?: string;
+    password?: string;
+}
+
+interface LogoutData {
+    token?: string;
+    guid?: string;
+}
+
+interface ValidateTokenData {
+    token?: string;
+}
+
 class UserManager extends BaseManager {
     private users: { [guid: string]: User };
 
     constructor(options: UserManagerOptions) {
         super(options);
-        this.users = {}; // Ключ guid значение new User
+        this.users = {};
 
         if (!this.io) return;
 
         this.io.on('connection', (socket: Socket) => {
-            socket.on(REGISTRATION, (data) => this.socketRegistration(data, socket));
-            socket.on(LOGIN, (data) => this.socketLogin(data, socket));
-            socket.on(LOGOUT, (data) => this.socketLogout(data, socket));
-            socket.on(LOBBY_START, (data) => this.socketLobbyStart(data, socket));
-            socket.on(VALIDATE_TOKEN, (data) => this.socketValidateToken(data, socket));
+            socket.on(REGISTRATION, (data: RegistrationData) => this.socketRegistration(data, socket));
+            socket.on(LOGIN, (data: LoginData) => this.socketLogin(data, socket));
+            socket.on(LOGOUT, (data: LogoutData) => this.socketLogout(data, socket));
+            socket.on(LOBBY_START, (data: any) => this.socketLobbyStart(data, socket));
+            socket.on(VALIDATE_TOKEN, (data: ValidateTokenData) => this.socketValidateToken(data, socket));
 
-            socket.on('disconnect', () => console.log('disconnect', socket.id));
+            socket.on('disconnect', () => {
+                const user = Object.values(this.users).find(u => u.getSelf().socketId === socket.id);
+                if (user && user.getSelf().guid) {
+                    this.mediator.get(CONFIG.MEDIATOR.TRIGGERS.DESTROY_ARMY, user.getSelf().guid);
+                    delete this.users[user.getSelf().guid!];
+                }
+            });
         });
     }
 
     private validateLogin(name: string): boolean {
-        // Логин от 3 до 20 символов
         if (!name || name.length < 3 || name.length > 20) {
             return false;
         }
-        // Допустимы латинские буквы, цифры, символы подчёркивания и точки
-        // Логин не может начинаться или заканчиваться точкой, не может содержать две точки подряд
         const loginRegex = /^[a-zA-Z0-9_]([a-zA-Z0-9_.]*[a-zA-Z0-9_])?$/;
         if (!loginRegex.test(name)) {
             return false;
         }
-        // Проверка на две точки подряд и начало/конец на точку
         if (name.includes('..') || name.startsWith('.') || name.endsWith('.')) {
             return false;
         }
@@ -52,11 +74,10 @@ class UserManager extends BaseManager {
     }
 
     private validatePassword(password: string): boolean {
-        // Пароль от 6 до 50 символов
         return !!(password && password.length >= 6 && password.length <= 50);
     }
 
-    private async socketRegistration(data: any = {}, socket: Socket): Promise<void> {
+    private async socketRegistration(data: RegistrationData, socket: Socket): Promise<void> {
         const { name, password, passwordRepeat } = data;
 
         if (!name || !password || !passwordRepeat) {
@@ -91,7 +112,7 @@ class UserManager extends BaseManager {
         socket.emit(REGISTRATION, this.answer.good(user.toClient()));
     }
 
-    private async socketLogin(data: any = {}, socket: Socket): Promise<void> {
+    private async socketLogin(data: LoginData, socket: Socket): Promise<void> {
         const { name, password } = data;
 
         if (!name || !password) {
@@ -119,7 +140,7 @@ class UserManager extends BaseManager {
         socket.emit(LOGIN, this.answer.bad(11));
     }
 
-    private async socketLogout(data: any = {}, socket: Socket): Promise<void> {
+    private async socketLogout(data: LogoutData, socket: Socket): Promise<void> {
         const { token, guid } = data;
 
         if (!token) {
@@ -127,7 +148,7 @@ class UserManager extends BaseManager {
             return;
         }
 
-        const user = this.users[guid];
+        const user = this.users[guid!];
         if (user) {
             await user.logout();
             delete this.users[user.getSelf().guid!];
@@ -136,11 +157,11 @@ class UserManager extends BaseManager {
         socket.emit(LOGOUT, this.answer.good(true));
     }
 
-    private async socketLobbyStart(data: any = {}, socket: Socket): Promise<void> {
+    private async socketLobbyStart(data: any, socket: Socket): Promise<void> {
         socket.emit(LOBBY_START, this.answer.good(true));
     }
 
-    private async socketValidateToken(data: any = {}, socket: Socket): Promise<void> {
+    private async socketValidateToken(data: ValidateTokenData, socket: Socket): Promise<void> {
         const { token } = data;
 
         if (!token) {
@@ -148,14 +169,12 @@ class UserManager extends BaseManager {
             return;
         }
 
-        // Сначала проверяем в памяти
         const cachedUser = Object.values(this.users).find((item) => item.getSelf().token === token);
         if (cachedUser) {
             socket.emit(VALIDATE_TOKEN, this.answer.good(cachedUser.toClient()));
             return;
         }
 
-        // Если нет в памяти — восстанавливаем из БД (например, после перезагрузки страницы)
         const userData = await this.db.getUserByValidToken(token);
         if (userData) {
             const user = User.restoreFromData(

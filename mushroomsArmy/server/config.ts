@@ -9,13 +9,15 @@ interface Config {
     };
     MEDIATOR: {
         EVENTS: {
-            START_GAME: string;  // payload: { guid: string, map: number[][], buildings: any[] }
-            ARMY_UPDATE: string;  // payload: { armyGuid: string, units: Unit[] }
-            UNIT_DIED: string;  // payload: { unitId: string, armyGuid: string }
-            UNIT_EXPLODED: string; // payload: { unitId: string, position: {x: number, y: number} }
+            START_GAME: string;
+            ARMY_UPDATE: string;
+            UNIT_DIED: string;
+            UNIT_EXPLODED: string;
         };
         TRIGGERS: {
-            GET_USER_BY_GUID: string; // payload: guid -> returns: User
+            GET_USER_BY_GUID: string;
+            TAKE_DAMAGE_HANDLER: string;  // НОВЫЙ
+            DESTROY_ARMY: string;          // НОВЫЙ
         };
     };
     SOCKET: {
@@ -49,6 +51,8 @@ const CONFIG: Config = {
         },
         TRIGGERS: {
             GET_USER_BY_GUID: 'GET_USER_BY_GUID',
+            TAKE_DAMAGE_HANDLER: 'TAKE_DAMAGE_HANDLER',  // НОВЫЙ
+            DESTROY_ARMY: 'DESTROY_ARMY',                 // НОВЫЙ
         },
     },
     SOCKET: {

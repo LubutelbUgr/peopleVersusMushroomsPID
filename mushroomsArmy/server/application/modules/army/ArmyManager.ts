@@ -21,6 +21,10 @@ class ArmyManager extends BaseManager {
 
         // Подписки на события медиатора
         this.mediator.subscribe(this.EVENTS.START_GAME, (data: any) => this.eventStartGame(data));
+        
+        // РЕГИСТРИРУЕМ НОВЫЕ ТРИГГЕРЫ
+        this.mediator.set(this.TRIGGERS.TAKE_DAMAGE_HANDLER, (data: any) => this.handleTakeDamage(data));
+        this.mediator.set(this.TRIGGERS.DESTROY_ARMY, (guid: string) => this.destroyArmy(guid));
     }
 
     /* ПРИВАТНЫЕ МЕТОДЫ */
@@ -44,6 +48,21 @@ class ArmyManager extends BaseManager {
             army.destructor();
         }
         delete this.army[guid];
+        console.log(`[ArmyManager] Армия уничтожена для игрока ${guid}`);
+    }
+
+    // НОВЫЙ ОБРАБОТЧИК ДЛЯ TAKE_DAMAGE_HANDLER
+    private handleTakeDamage(data: any): any {
+        const { sourceGuid, targetGuid, amount, damageType } = data;
+        const army = this.army[targetGuid];
+        
+        if (!army) {
+            return { success: false, error: 'Army not found' };
+        }
+        
+        // Здесь будет логика нанесения урона юниту
+        // Пока возвращаем успех
+        return { success: true, damage: amount, type: damageType };
     }
 
     /* СОБЫТИЯ */
