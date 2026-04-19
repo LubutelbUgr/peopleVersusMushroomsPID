@@ -3,7 +3,7 @@
  */
 export type TError = {
     code: number;
-    text: string;
+    message: string;
 }
 
 /**
@@ -20,7 +20,7 @@ export type TResponse<T> = {
  */
 export type TUser = {
     token: string;
-    username: string;
+    name: string;
     id?: number;
     guid?: string;
 }

@@ -1,9 +1,12 @@
 import BaseManager, { TManagerOptions } from '../BaseManager';
 import CONFIG from '../../../config';
 import { Army, TMap, TArmyState, TBuildingInput } from '../../army/Army';
-import User from '../user/User';
+import { Socket } from 'socket.io';
 
-const { GAME_STATE, GAME_OVER } = CONFIG.SOCKET;
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const GLOBAL_CONFIG = require('../../../../../global/globalConfig');
+
+const { GAME_STATE, GAME_OVER, LOBBY_START } = CONFIG.SOCKET;
 
 type TStartGame = { guid: string; map: TMap; buildings: TBuildingInput[]; mapGuid: string };
 
@@ -35,6 +38,11 @@ class ArmyManager extends BaseManager {
         );
 
         this.mediator.set(CONFIG.MEDIATOR.TRIGGERS.DESTROY_ARMY, (guid: string) => this.destroyArmy(guid));
+
+        if (!this.io) return;
+        this.io.on('connection', (socket: Socket) => {
+            socket.on(LOBBY_START, (data: { guid?: string; token?: string }) => this.socketLobbyStart(data, socket));
+        });
     }
 
     private triggerTakeDamage({ armyGuid, unitGuid, amount, type }: {
@@ -67,7 +75,7 @@ class ArmyManager extends BaseManager {
     }
 
     private async updateArmyCallback(guid: string, armyState: TArmyState) {
-        const user = this.mediator.get<User, string>(this.TRIGGERS.GET_USER_BY_GUID, guid);
+        const user = this.mediator.get(this.TRIGGERS.GET_USER_BY_GUID, guid) as { socketId: string } | null;
         if (!user) return;
 
         this.io.to(user.socketId).emit(GAME_STATE, this.answer.good(armyState));
@@ -89,12 +97,12 @@ class ArmyManager extends BaseManager {
 
         // Отправляем юниты и здания на отдельные эндпоинты карты
         await this.send<{ mapGuid: string; userGuid: string; units: TArmyState['units'] }>(
-            `${CONFIG.SERVICES.MAP_URL}/updateUnitsHandler`,
+            `${GLOBAL_CONFIG.MAP.URL}/updateUnitsHandler`,
             { mapGuid: army.mapGuid, userGuid: army.guid, units }
         );
 
         await this.send<{ mapGuid: string; userGuid: string; buildings: TArmyState['buildings'] }>(
-            `${CONFIG.SERVICES.MAP_URL}/updateBuildingsHandler`,
+            `${GLOBAL_CONFIG.MAP.URL}/updateBuildingsHandler`,
             { mapGuid: army.mapGuid, userGuid: army.guid, buildings }
         );
 
@@ -141,6 +149,41 @@ class ArmyManager extends BaseManager {
                 update: (guid: string, armyState: TArmyState) => this.updateArmyCallback(guid, armyState)
             }
         });
+    }
+
+    private socketLobbyStart({ guid, token }: { guid?: string; token?: string }, socket: Socket): void {
+        if (!guid || !token) {
+            socket.emit(LOBBY_START, this.answer.bad(242));
+            return;
+        }
+
+        const user = this.mediator.get(this.TRIGGERS.GET_USER_BY_GUID, guid) as any;
+        if (!user || user.token !== token) {
+            socket.emit(LOBBY_START, this.answer.bad(242));
+            return;
+        }
+
+        user.socketId = socket.id;
+
+        const map: (number | null)[][] = Array.from({ length: 100 }, () =>
+            Array.from({ length: 100 }, (_, col) => (col === 10 ? 1 : 0))
+        );
+
+        const buildings: TBuildingInput[] = [
+            { guid: this.common.guid(), type: 'house', x: 50, y: 30, hp: 200, maxHp: 200 },
+            { guid: this.common.guid(), type: 'barracks', x: 60, y: 50, hp: 300, maxHp: 300 },
+            { guid: this.common.guid(), type: 'tower', x: 56, y: 70, hp: 150, maxHp: 150 },
+            { guid: this.common.guid(), type: 'sporovaya_bashnya', x: 40, y: 20, hp: 500, maxHp: 500, sizeX: 2, sizeY: 2 },
+            { guid: this.common.guid(), type: 'sporovaya_bashnya', x: 40, y: 60, hp: 500, maxHp: 500, sizeX: 2, sizeY: 2 },
+            { guid: this.common.guid(), type: 'vzryvomor', x: 80, y: 20, hp: 70, maxHp: 70, attackRange: 7 },
+            { guid: this.common.guid(), type: 'vzryvomor', x: 60, y: 60, hp: 70, maxHp: 70, attackRange: 7 },
+            { guid: this.common.guid(), type: 'vzryvomor', x: 40, y: 80, hp: 70, maxHp: 70, attackRange: 7 },
+        ];
+
+        const mapGuid = this.common.guid();
+
+        socket.emit(LOBBY_START, this.answer.good(true));
+        this.mediator.call(this.EVENTS.START_GAME, { guid, map, buildings, mapGuid });
     }
 }
 

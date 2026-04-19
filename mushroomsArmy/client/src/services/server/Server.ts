@@ -1,11 +1,12 @@
 import { io, Socket } from "socket.io-client";
+import md5 from 'md5';
 import CONFIG from '../../config';
 import Mediator from '../Mediator/Mediator';
 import { TArmyState, TResponse, TUser } from './types';
 import { authStorage } from '../../utils/authStorage';
 
 const { HOST, SOCKET } = CONFIG;
-const { REGISTRATION, LOGIN, LOGOUT, LOBBY_START, VALIDATE_TOKEN, GAME_STATE, GAME_OVER } = SOCKET;
+const { REGISTRATION, LOGIN, LOGOUT, LOBBY_START, GAME_STATE, GAME_OVER } = SOCKET;
 
 class Server {
     mediator: Mediator;
@@ -14,7 +15,6 @@ class Server {
     constructor(mediator: Mediator) {
         this.mediator = mediator;
         this.socket = io(HOST);
-
 
         this.socket.on(REGISTRATION, (data) => this.handleRegistration(data));
         this.socket.on(LOGIN, (data) => this.handleLogin(data));
@@ -27,15 +27,14 @@ class Server {
     register(username: string, password: string, passwordRepeat: string): void {
         this.socket.emit(REGISTRATION, {
             name: username,
-            password,
-            passwordRepeat,
+            passwordHash: md5(password),
         });
     }
 
     login(username: string, password: string): void {
         this.socket.emit(LOGIN, {
             name: username,
-            password
+            passwordHash: md5(password),
         });
     }
 
@@ -47,7 +46,7 @@ class Server {
         );
 
         if (!user) {
-            this.mediator.call(ERROR, { code: 13, text: 'Пользователь не найден' });
+            this.mediator.call(ERROR, { code: 13, message: 'Пользователь не найден' });
             return;
         }
 
@@ -65,20 +64,13 @@ class Server {
         );
 
         if (!user || !user.token || !user.guid) {
-            this.mediator.call(ERROR, { code: 13, text: 'Недостаточно данных' });
+            this.mediator.call(ERROR, { code: 13, message: 'Недостаточно данных' });
             return;
         }
 
         this.socket.emit(LOBBY_START, {
             token: user.token,
             guid: user.guid
-        });
-    }
-
-    authValidate(token: string): Promise<TResponse<TUser>> {
-        return new Promise((resolve) => {
-            this.socket.emit(VALIDATE_TOKEN, { token });
-            this.socket.once(VALIDATE_TOKEN, (response) => resolve(response));
         });
     }
 

@@ -1,31 +1,25 @@
 import { Server as SocketIOServer } from 'socket.io';
-import Mediator, { TEvent } from './Mediator';
-import DB from './db/DB';
-import Answer, { TResponse } from '../Answer';
 import Common from './common/Common';
-import CONFIG from '../../config';
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const GLOBAL_CONFIG = require('../../../../global/globalConfig');
 
 export type TManagerOptions = {
-    mediator: Mediator;
-    db: DB;
+    mediator: any;
+    db: any;
     io: SocketIOServer;
-    answer: Answer;
+    answer: any;
     common: Common;
 }
 
-type TServiceError = {
-    code: number;
-    text: string;
-};
-
 class BaseManager {
-    protected answer: Answer;
-    protected mediator: Mediator;
-    protected db: DB;
+    protected answer: any;
+    protected mediator: any;
+    protected db: any;
     protected io: SocketIOServer;
     protected common: Common;
-    protected EVENTS: TEvent;
-    protected TRIGGERS: TEvent;
+    protected EVENTS: { [key: string]: string };
+    protected TRIGGERS: { [key: string]: string };
 
     constructor(options: TManagerOptions) {
         const { mediator, db, io, answer, common } = options;
@@ -41,10 +35,11 @@ class BaseManager {
     }
 
     async send<T, K = undefined>(
-        url: string, 
-        data: T | null = null, 
+        url: string,
+        data: T | null = null,
         method = 'POST'
     ): Promise<K | null> {
+        console.log('send to', url, data);
         try {
             const params: RequestInit = {
                 method,
@@ -58,53 +53,23 @@ class BaseManager {
             }
 
             const res = await fetch(url, params);
-            const answer = await res.json() as TResponse<K>;
+            const answer = await res.json() as any;
 
-            if (answer.result === 'ok') {
+            console.log('answer', answer);
+
+            if (answer && answer.result === 'ok') {
                 return answer.data;
-            }
-
-            if (answer.result === 'error') {
-                await this.logErrorToDB(url, answer.error);
             }
 
             return null;
         } catch (error) {
             console.error(`[BaseManager] Ошибка запроса к ${url}:`, error);
-
-            await this.logErrorToDB(url, {
-                code: 9000,
-                text: error instanceof Error ? error.message : 'Unknown send error',
-            });
-
             return null;
         }
     }
 
-    /** Записывает ошибку в базу данных */
-    private async logErrorToDB(url: string, error: unknown): Promise<void> {
-        try {
-            if (
-                typeof error === 'object' &&
-                error !== null &&
-                'code' in error &&
-                'text' in error &&
-                typeof error.code === 'number' &&
-                typeof error.text === 'string'
-            ) {
-                const serviceError = error as TServiceError;
-                await this.db.logError(url, serviceError.code, serviceError.text);
-                return;
-            }
-
-            await this.db.logError(url, 9000, 'Unknown service error');
-        } catch (dbError) {
-            console.error('[BaseManager] Не удалось записать ошибку в БД:', dbError);
-        }
-    }
-
     sendToMap<T, K = undefined>(
-        urlPath: string, 
+        urlPath: string,
         mapGuid: string,
         armyGuid: string,
         data: T | null = null,
@@ -112,23 +77,30 @@ class BaseManager {
     ): Promise<K | null> {
         const extra = extraPath ? `/${extraPath}` : '';
         return this.send(
-            `${CONFIG.SERVICES.MAP_URL}${urlPath}/${mapGuid}/${armyGuid}${extra}`,
+            `${GLOBAL_CONFIG.MAP.URL}${urlPath}/${mapGuid}/${armyGuid}${extra}`,
             data,
         );
-    }
-
-    sendToPeopleArmy<T, K = undefined>(
-        urlPath: string,
-        data: T | null = null
-    ): Promise<K | null> {
-        return this.send(`${CONFIG.SERVICES.PEOPLE_ARMY_URL}${urlPath}`, data);
     }
 
     sendToMushroomsEconomy<T, K = undefined>(
         urlPath: string,
         data: T | null = null
     ): Promise<K | null> {
-        return this.send(`${CONFIG.SERVICES.MUSHROOMS_ECONOMY_URL}${urlPath}`, data);
+        return this.send(`${GLOBAL_CONFIG.MUSHROOMS_ECONOMY.URL}${urlPath}`, data);
+    }
+
+    sendToPeopleArmy<T, K = undefined>(
+        urlPath: string,
+        data: T | null = null
+    ): Promise<K | null> {
+        return this.send(`${GLOBAL_CONFIG.PEOPLE_ARMY.URL}${urlPath}`, data);
+    }
+
+    sendToPeopleEconomy<T, K = undefined>(
+        urlPath: string,
+        data: T | null = null
+    ): Promise<K | null> {
+        return this.send(`${GLOBAL_CONFIG.PEOPLE_ECONOMY.URL}${urlPath}`, data);
     }
 }
 

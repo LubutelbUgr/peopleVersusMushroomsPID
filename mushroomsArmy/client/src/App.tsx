@@ -5,7 +5,6 @@ import Mediator from './services/Mediator/Mediator';
 import Server from './services/server/Server';
 import CONFIG from './config'
 import useStore from './services/Store/useStore';
-import { TResponse, TUser } from './services/server/types';
 
 import './App.css';
 
@@ -19,29 +18,18 @@ function App() {
   useStore(mediator);
   const server = useMemo(() => new Server(mediator), [mediator]);
 
-
-useEffect(() => {
-    const { token } = authStorage.getAuth();
-
-    if (!token) {
-        setPage(PAGES.LOGIN);
-        return;
+  useEffect(() => {
+    const { token, user } = authStorage.getAuth();
+    if (token && user) {
+      const SET_STORE = mediator.getTriggerTypes().SET_STORE;
+      mediator.get(SET_STORE, { name: 'user', value: user });
+      setPage(PAGES.LOBBY);
+    } else {
+      setPage(PAGES.LOGIN);
     }
+  }, [mediator]);
 
-    server.authValidate(token).then((response: TResponse<TUser>) => {
-        if (response?.result === 'ok') {
-            const SET_STORE = mediator.getTriggerTypes().SET_STORE;
-            mediator.get(SET_STORE, { name: 'user', value: response.data });
-            setPage(PAGES.LOBBY);
-        } else {
-            authStorage.clearAuth();
-            setPage(PAGES.LOGIN);
-        }
-    });
-}, [server, mediator]);
-
-
-return (
+  return (
     <div className="App">
         <div className='app'>
           <PageManager 
