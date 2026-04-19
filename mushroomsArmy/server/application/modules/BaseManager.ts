@@ -1,21 +1,44 @@
 import { Server as SocketIOServer } from 'socket.io';
 import Common from './common/Common';
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const GLOBAL_CONFIG = require('../../../../global/globalConfig');
 
+type TAnswer = {
+    good: (data: unknown) => unknown;
+    bad: (code: number) => unknown;
+};
+
+type TMediator = {
+    subscribe: (event: string, callback: (data: unknown) => void) => void;
+    call: (event: string, data?: unknown) => unknown;
+    set: (trigger: string, callback: (data: unknown) => unknown) => void;
+    get: (trigger: string, data?: unknown) => unknown;
+    getEventTypes: () => { [key: string]: string };
+    getTriggerTypes: () => { [key: string]: string };
+};
+
+type TDB = {
+    getUserByName: (name: string) => Promise<unknown>;
+    getUserByToken: (token: string) => Promise<unknown>;
+};
+
 export type TManagerOptions = {
-    mediator: any;
-    db: any;
+    mediator: TMediator;
+    db: TDB;
     io: SocketIOServer;
-    answer: any;
+    answer: TAnswer;
     common: Common;
 }
 
+type TApiResponse = {
+    result: string;
+    data: unknown;
+};
+
 class BaseManager {
-    protected answer: any;
-    protected mediator: any;
-    protected db: any;
+    protected answer: TAnswer;
+    protected mediator: TMediator;
+    protected db: TDB;
     protected io: SocketIOServer;
     protected common: Common;
     protected EVENTS: { [key: string]: string };
@@ -53,12 +76,12 @@ class BaseManager {
             }
 
             const res = await fetch(url, params);
-            const answer = await res.json() as any;
+            const answer = await res.json() as TApiResponse;
 
             console.log('answer', answer);
 
             if (answer && answer.result === 'ok') {
-                return answer.data;
+                return answer.data as K;
             }
 
             return null;

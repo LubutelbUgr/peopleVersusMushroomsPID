@@ -58,13 +58,6 @@ class Champigneb extends Unit {
 
     public takeDamage(amount: number, type: string): void {
         if (!this.isAlive) return;
-
-        // При огненном уроне — немедленный взрыв
-        if (type === 'fire') {
-            this.explode();
-            return;
-        }
-
         super.takeDamage(amount, type);
     }
 

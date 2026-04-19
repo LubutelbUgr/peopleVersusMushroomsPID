@@ -305,8 +305,8 @@ class Unit {
         return {
             guid: this.guid,
             type: this.type,
-            x: this.x,
-            y: this.y,
+            x: Math.floor(this.x),
+            y: Math.floor(this.y),
             hp: this.hp,
             maxHp: this.maxHp,
         };

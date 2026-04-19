@@ -3,12 +3,13 @@ import CONFIG from '../../../config';
 import { Army, TMap, TArmyState, TBuildingInput } from '../../army/Army';
 import { Socket } from 'socket.io';
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const GLOBAL_CONFIG = require('../../../../../global/globalConfig');
 
 const { GAME_STATE, GAME_OVER, LOBBY_START } = CONFIG.SOCKET;
 
 type TStartGame = { guid: string; map: TMap; buildings: TBuildingInput[]; mapGuid: string };
+type TTakeDamage = { armyGuid: string; unitGuid: string; amount: number; type: string };
+type TUser = { guid: string; token: string; socketId: string; name: string };
 
 type TVisibleEntity = {
     guid: string;
@@ -31,13 +32,13 @@ class ArmyManager extends BaseManager {
 
         this.army = {};
 
-        this.mediator.subscribe(this.EVENTS.START_GAME, (data: TStartGame) => this.eventStartGame(data));
+        this.mediator.subscribe(this.EVENTS.START_GAME, (data: unknown) => this.eventStartGame(data as TStartGame));
 
-        this.mediator.set(CONFIG.MEDIATOR.TRIGGERS.TAKE_DAMAGE_HANDLER, (data: { armyGuid: string; unitGuid: string; amount: number; type: string }) =>
-            this.triggerTakeDamage(data)
+        this.mediator.set(CONFIG.MEDIATOR.TRIGGERS.TAKE_DAMAGE_HANDLER, (data: unknown) =>
+            this.triggerTakeDamage(data as TTakeDamage)
         );
 
-        this.mediator.set(CONFIG.MEDIATOR.TRIGGERS.DESTROY_ARMY, (guid: string) => this.destroyArmy(guid));
+        this.mediator.set(CONFIG.MEDIATOR.TRIGGERS.DESTROY_ARMY, (data: unknown) => this.destroyArmy(data as string));
 
         if (!this.io) return;
         this.io.on('connection', (socket: Socket) => {
@@ -45,9 +46,7 @@ class ArmyManager extends BaseManager {
         });
     }
 
-    private triggerTakeDamage({ armyGuid, unitGuid, amount, type }: {
-        armyGuid: string; unitGuid: string; amount: number; type: string;
-    }): boolean {
+    private triggerTakeDamage({ armyGuid, unitGuid, amount, type }: TTakeDamage): boolean {
         const army = this.army[armyGuid];
         if (!army) return false;
 
@@ -157,7 +156,7 @@ class ArmyManager extends BaseManager {
             return;
         }
 
-        const user = this.mediator.get(this.TRIGGERS.GET_USER_BY_GUID, guid) as any;
+        const user = this.mediator.get(this.TRIGGERS.GET_USER_BY_GUID, guid) as TUser | null;
         if (!user || user.token !== token) {
             socket.emit(LOBBY_START, this.answer.bad(242));
             return;

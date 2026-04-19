@@ -1,7 +1,7 @@
 import Unit from "./Units";
 import { TMap } from "../Army";
 
-export interface TVzryvomorOptions {
+export type TVzryvomorOptions = {
     guid: string;
     hp: number;
     maxHp: number;
@@ -10,10 +10,10 @@ export interface TVzryvomorOptions {
     attackRange: number;
 };
 
-interface Point {
+type Point = {
     x: number;
     y: number;
-}
+};
 
 const distance = (p1: Point, p2: Point) => {
     const dx = p1.x - p2.x;
@@ -21,12 +21,12 @@ const distance = (p1: Point, p2: Point) => {
     return Math.sqrt(dx * dx + dy * dy);
 }
 
-interface Respawn {
+type Respawn = {
     respawnIn: number;
     inProgress: boolean;
-}
+};
 
-interface VzryvomorState {
+type VzryvomorState = {
     guid: string;
     type: string;
     hp: number;
@@ -38,7 +38,7 @@ interface VzryvomorState {
     isExploding: boolean;
     respawn: Respawn;
     elapsedFromLastDecision: number;
-}
+};
 
 export interface IBuilding<T> {
     guid: string;
@@ -52,6 +52,7 @@ export interface IBuilding<T> {
     takeDamage: (amount: number, type: string) => void;
     getState: () => T;
 }
+// IBuilding — интерфейс поведения, оставлен как interface намеренно
 
 export class Vzryvomor implements IBuilding<VzryvomorState> {
 
