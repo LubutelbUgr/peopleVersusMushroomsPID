@@ -42,6 +42,15 @@ describe('authStorage', () => {
     expect(result.user).toBeNull();
   });
 
+  it('should return token and null user when token exists but user does not', () => {
+    localStorage.setItem('token', 'only-token');
+
+    const result = authStorage.getAuth();
+
+    expect(result.token).toBe('only-token');
+    expect(result.user).toBeNull();
+  });
+
   it('should clear token and user from localStorage', () => {
     const user: TUser = {
       token: 'clear-token',
@@ -64,5 +73,58 @@ describe('authStorage', () => {
 
     expect(result.token).toBe('broken-token');
     expect(result.user).toBeNull();
+  });
+
+  it('should remove undefined fields when saving user', () => {
+    const user = {
+      token: 'test-token',
+      name: 'test-user',
+      guid: undefined,
+    } as unknown as TUser;
+
+    authStorage.setAuth('test-token', user);
+
+    expect(localStorage.getItem('user')).toBe(
+      JSON.stringify({
+        token: 'test-token',
+        name: 'test-user',
+      })
+    );
+  });
+
+  it('should convert NaN to null when saving user', () => {
+    const user = {
+      token: 'test-token',
+      name: 'test-user',
+      id: NaN,
+    } as unknown as TUser;
+
+    authStorage.setAuth('test-token', user);
+
+    expect(localStorage.getItem('user')).toBe(
+      JSON.stringify({
+        token: 'test-token',
+        name: 'test-user',
+        id: null,
+      })
+    );
+  });
+
+  it('should convert Infinity to null when saving user', () => {
+    const user = {
+      token: 'test-token',
+      name: 'test-user',
+      id: Infinity,
+    } as unknown as TUser;
+
+    authStorage.setAuth('test-token', user);
+
+    expect(localStorage.getItem('user')).toBe(
+      JSON.stringify({
+        token: 'test-token',
+        name: 'test-user',
+        id: null,
+      })
+    );
   });
 });
