@@ -6,11 +6,11 @@ import { ILobby, TUser } from "../../services/server/types";
 import './Lobby.css';
 
 type TLobbyRole = keyof ILobby['playersGuids'];
-const LOBBY_ROLES: TLobbyRole[] = ['spectator', 'mushroomArmy', 'mushroomEconomy', 'peopleArmy', 'peopleEconomy'];
+const LOBBY_ROLES: TLobbyRole[] = ['spectator', 'mushroomsArmy', 'mushroomsEconomy', 'peopleArmy', 'peopleEconomy'];
 const ROLE_LABELS: Record<TLobbyRole, string> = {
     spectator: 'Наблюдатель',
-    mushroomArmy: 'Армия грибов',
-    mushroomEconomy: 'Экономика грибов',
+    mushroomsArmy: 'Армия грибов',
+    mushroomsEconomy: 'Экономика грибов',
     peopleArmy: 'Армия людей',
     peopleEconomy: 'Экономика людей',
 };
@@ -30,6 +30,7 @@ const Lobby: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
         LEAVE_LOBBY,
         SET_READY,
         DROP_FROM_LOBBY,
+        ERROR,
     } = mediator.getEventTypes();
 
     const user = mediator.get(GET_STORE, 'user') as TUser | null;
@@ -37,8 +38,7 @@ const Lobby: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
     const [lobbies, setLobbies] = useState<ILobby[]>([]);
     const [currentLobby, setCurrentLobby] = useState<ILobby | null>(null);
     const [isReady, setIsReady] = useState(false);
-    const [selectedRole, setSelectedRole] = useState<TLobbyRole>('spectator');
-    const [selectedRolesByLobby, setSelectedRolesByLobby] = useState<Record<string, TLobbyRole>>({});
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [newLobbyName, setNewLobbyName] = useState('');
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
@@ -113,7 +113,6 @@ const Lobby: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
             const myRole = roles.find((role) => lobby.playersGuids[role] === myGuid);
             if (!myRole) return;
 
-            setSelectedRole(myRole);
             setIsReady(Boolean(lobby.playersIsReady?.[myRole]));
         };
 
@@ -149,6 +148,13 @@ const Lobby: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
             await syncLobbyFromList();
         };
 
+        const handleError = (data?: unknown) => {
+            const err = data as { code?: number; message?: string } | null | undefined;
+            const msg = err?.message ?? `Ошибка сервера (код ${err?.code ?? '?'})`;
+            setErrorMsg(msg);
+            setTimeout(() => setErrorMsg(null), 4000);
+        };
+
         mediator.subscribe(USER_LOGGED_OUT, handleLoggedOut);
         mediator.subscribe(GAME_STARTED, handleGameStarted);
         mediator.subscribe(LOBBY_UPDATED, handleLobbyUpdated);
@@ -158,6 +164,7 @@ const Lobby: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
         mediator.subscribe(LEAVE_LOBBY, handleLeaveLobby);
         mediator.subscribe(SET_READY, handleSetReady);
         mediator.subscribe(DROP_FROM_LOBBY, handleDropFromLobby);
+        mediator.subscribe(ERROR, handleError);
 
         return () => {
             isCancelled = true;
@@ -170,6 +177,7 @@ const Lobby: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
             mediator.unsubscribe(LEAVE_LOBBY, handleLeaveLobby);
             mediator.unsubscribe(SET_READY, handleSetReady);
             mediator.unsubscribe(DROP_FROM_LOBBY, handleDropFromLobby);
+            mediator.unsubscribe(ERROR, handleError);
         };
     }, [
         mediator,
@@ -185,6 +193,7 @@ const Lobby: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
         LEAVE_LOBBY,
         SET_READY,
         DROP_FROM_LOBBY,
+        ERROR,
     ]);
 
     const handleCreateLobby = () => {
@@ -195,14 +204,13 @@ const Lobby: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
     const handleConfirmCreateLobby = () => {
         const lobbyName = newLobbyName.trim();
         if (!lobbyName) return;
-        server.createLobby({ lobbyName, role: selectedRole });
+        server.createLobby({ lobbyName, role: 'mushroomsArmy' });
         setIsCreateModalOpen(false);
         setNewLobbyName('');
     };
 
     const handleJoinLobby = (lobbyGuid: string) => {
-        const role = selectedRolesByLobby[lobbyGuid] ?? 'spectator';
-        server.joinToLobby({ lobbyGuid, role });
+        server.joinToLobby({ lobbyGuid, role: 'mushroomsArmy' });
     };
 
     const handleLeaveLobby = () => {
@@ -226,13 +234,6 @@ const Lobby: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
         server.logout();
     };
 
-    const handleRoleChangeForLobby = (lobbyGuid: string, role: TLobbyRole) => {
-        setSelectedRolesByLobby((prev) => ({
-            ...prev,
-            [lobbyGuid]: role,
-        }));
-    };
-
     if (currentLobby) {
         const myGuid = user?.guid ?? null;
         const myRole = LOBBY_ROLES.find((role) => currentLobby.playersGuids[role] === myGuid) ?? null;
@@ -240,6 +241,7 @@ const Lobby: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
         return (
             <div className="lobby">
                 <div className="lobby__container">
+                    {errorMsg && <div className="lobby__errorToast">{errorMsg}</div>}
                     <h2 className="lobby__title">Комната: {currentLobby.lobbyName}</h2>
 
                     <div className="lobby__tableWrap">
@@ -311,7 +313,8 @@ const Lobby: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
     return (
         <div className="lobby">
             <div className="lobby__container">
-                <div className="lobby__topBar">
+                    {errorMsg && <div className="lobby__errorToast">{errorMsg}</div>}
+                    <div className="lobby__topBar">
                     <div className="lobby__userName">{user?.name ?? 'Игрок'}</div>
                     <button className="lobby__dangerButton" onClick={handleLogout}>
                         Выход
@@ -326,9 +329,8 @@ const Lobby: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
                     ) : (
                         lobbies.map((lobby) => {
                             const takenSlotsCount = LOBBY_ROLES.filter((role) => lobby.playersGuids[role] !== null).length;
-                            const selectedRoleForLobby = selectedRolesByLobby[lobby.lobbyGuid] ?? 'spectator';
-                            const selectedOccupant = lobby.playersGuids[selectedRoleForLobby];
-                            const canJoinSelectedRole = selectedOccupant === null || selectedOccupant === user?.guid;
+                            const armySlotTaken = lobby.playersGuids['mushroomsArmy'] !== null
+                                && lobby.playersGuids['mushroomsArmy'] !== user?.guid;
 
                             return (
                                 <div key={lobby.lobbyGuid} className="lobby__card">
@@ -338,26 +340,11 @@ const Lobby: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
                                     </div>
 
                                     <div className="lobby__cardActions">
-                                        <select
-                                            className="lobby__select"
-                                            value={selectedRoleForLobby}
-                                            onChange={(event) => handleRoleChangeForLobby(lobby.lobbyGuid, event.target.value as TLobbyRole)}
-                                        >
-                                            {LOBBY_ROLES.map((role) => {
-                                                const occupantGuid = lobby.playersGuids[role];
-                                                const disabled = occupantGuid !== null && occupantGuid !== user?.guid;
-
-                                                return (
-                                                    <option key={role} value={role} disabled={disabled}>
-                                                        {ROLE_LABELS[role]}
-                                                    </option>
-                                                );
-                                            })}
-                                        </select>
+                                        <span className="lobby__roleLabel">Армия грибов</span>
 
                                         <button
                                             className="lobby__primaryButton"
-                                            disabled={!canJoinSelectedRole}
+                                            disabled={armySlotTaken}
                                             onClick={() => handleJoinLobby(lobby.lobbyGuid)}
                                         >
                                             Войти
@@ -384,18 +371,6 @@ const Lobby: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
                                 value={newLobbyName}
                                 onChange={(event) => setNewLobbyName(event.target.value)}
                             />
-
-                            <select
-                                className="lobby__select"
-                                value={selectedRole}
-                                onChange={(event) => setSelectedRole(event.target.value as TLobbyRole)}
-                            >
-                                {LOBBY_ROLES.map((role) => (
-                                    <option key={role} value={role}>
-                                        {ROLE_LABELS[role]}
-                                    </option>
-                                ))}
-                            </select>
 
                             <div className="lobby__modalActions">
                                 <button className="lobby__secondaryButton" onClick={() => setIsCreateModalOpen(false)}>

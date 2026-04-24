@@ -83,6 +83,26 @@
     align-items: center;
 }
 
+.lobby__roleLabel {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+    padding: 0 4px;
+}
+
+.lobby__errorToast {
+    background: #fee2e2;
+    border: 1px solid #fca5a5;
+    color: #b91c1c;
+    border-radius: 8px;
+    padding: 10px 16px;
+    margin-bottom: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: center;
+}
+
 .lobby__select {
     flex: 1;
     min-height: 38px;

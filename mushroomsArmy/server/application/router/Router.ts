@@ -158,7 +158,10 @@ function Router({ answer, mediator }: TRouterOptions): ExpressRouter {
         const lobbies: any = await lobbiesResp.json();
 
         if (lobbies && lobbies.result === 'ok') {
-            res.json(answer.good(lobbies.data));
+            // Карта оборачивает ответ дважды: { result, data: { result, data: [...] } }
+            const inner = lobbies.data;
+            const list = (inner && inner.result === 'ok') ? inner.data : inner;
+            res.json(answer.good(Array.isArray(list) ? list : []));
         } else {
             res.json(answer.bad(242));
         }

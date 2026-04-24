@@ -26,7 +26,7 @@ interface Config {
 
 const CONFIG: Config = {
     NAME: 'MUSHROOMS ARMY SERVER',
-    ROLE: 'mushroomArmy',
+    ROLE: 'mushroomsArmy',
     PORT: 3003,
 
     MEDIATOR: {
