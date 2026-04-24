@@ -6,6 +6,14 @@ import { ILobby, TUser } from "../../services/server/types";
 import './Lobby.css';
 
 type TLobbyRole = keyof ILobby['playersGuids'];
+const LOBBY_ROLES: TLobbyRole[] = ['spectator', 'mushroomArmy', 'mushroomEconomy', 'peopleArmy', 'peopleEconomy'];
+const ROLE_LABELS: Record<TLobbyRole, string> = {
+    spectator: 'Наблюдатель',
+    mushroomArmy: 'Армия грибов',
+    mushroomEconomy: 'Экономика грибов',
+    peopleArmy: 'Армия людей',
+    peopleEconomy: 'Экономика людей',
+};
 
 const Lobby: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
     const server = useContext(ServerContext);
@@ -30,6 +38,7 @@ const Lobby: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
     const [currentLobby, setCurrentLobby] = useState<ILobby | null>(null);
     const [isReady, setIsReady] = useState(false);
     const [selectedRole, setSelectedRole] = useState<TLobbyRole>('spectator');
+    const [selectedRolesByLobby, setSelectedRolesByLobby] = useState<Record<string, TLobbyRole>>({});
     const [newLobbyName, setNewLobbyName] = useState('');
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
@@ -192,7 +201,8 @@ const Lobby: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
     };
 
     const handleJoinLobby = (lobbyGuid: string) => {
-        server.joinToLobby({ lobbyGuid, role: selectedRole });
+        const role = selectedRolesByLobby[lobbyGuid] ?? 'spectator';
+        server.joinToLobby({ lobbyGuid, role });
     };
 
     const handleLeaveLobby = () => {
@@ -216,12 +226,194 @@ const Lobby: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
         server.logout();
     };
 
-    const handleStartGame = () => {
-        server.lobbyStart();
+    const handleRoleChangeForLobby = (lobbyGuid: string, role: TLobbyRole) => {
+        setSelectedRolesByLobby((prev) => ({
+            ...prev,
+            [lobbyGuid]: role,
+        }));
     };
 
+    if (currentLobby) {
+        const myGuid = user?.guid ?? null;
+        const myRole = LOBBY_ROLES.find((role) => currentLobby.playersGuids[role] === myGuid) ?? null;
+
+        return (
+            <div className="lobby">
+                <div className="lobby__container">
+                    <h2 className="lobby__title">Комната: {currentLobby.lobbyName}</h2>
+
+                    <div className="lobby__tableWrap">
+                        <table className="lobby__rolesTable">
+                            <thead>
+                                <tr>
+                                    <th>Роль</th>
+                                    <th>Игрок</th>
+                                    <th>Готовность</th>
+                                    <th>Действие</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {LOBBY_ROLES.map((role) => {
+                                    const playerGuid = currentLobby.playersGuids[role];
+                                    const ready = currentLobby.playersIsReady[role];
+                                    const canKick = Boolean(isCreator && playerGuid && playerGuid !== user?.guid);
+
+                                    return (
+                                        <tr key={role}>
+                                            <td>{ROLE_LABELS[role]}</td>
+                                            <td>{playerGuid ?? 'пусто'}</td>
+                                            <td>
+                                                <span className={ready ? 'lobby__readyBadge lobby__readyBadge--yes' : 'lobby__readyBadge'}>
+                                                    {playerGuid ? (ready ? 'готов' : 'не готов') : '-'}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                {canKick ? (
+                                                    <button
+                                                        className="lobby__dangerButton"
+                                                        onClick={() => handleKickPlayer(playerGuid!)}
+                                                    >
+                                                        Кикнуть
+                                                    </button>
+                                                ) : (
+                                                    '-'
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div className="lobby__roomActions">
+                        {!isReady && myRole && (
+                            <button className="lobby__primaryButton" onClick={handleToggleReady}>
+                                Готов
+                            </button>
+                        )}
+
+                        {isCreator && (
+                            <button className="lobby__primaryButton" disabled={!allReady} onClick={handleStart}>
+                                Старт
+                            </button>
+                        )}
+
+                        <button className="lobby__secondaryButton" onClick={handleLeaveLobby}>
+                            Покинуть комнату
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
-        <div className="lobby" />
+        <div className="lobby">
+            <div className="lobby__container">
+                <div className="lobby__topBar">
+                    <div className="lobby__userName">{user?.name ?? 'Игрок'}</div>
+                    <button className="lobby__dangerButton" onClick={handleLogout}>
+                        Выход
+                    </button>
+                </div>
+
+                <h1 className="lobby__title">Список комнат</h1>
+
+                <div className="lobby__list">
+                    {lobbies.length === 0 ? (
+                        <div className="lobby__empty">Пока нет комнат</div>
+                    ) : (
+                        lobbies.map((lobby) => {
+                            const takenSlotsCount = LOBBY_ROLES.filter((role) => lobby.playersGuids[role] !== null).length;
+                            const selectedRoleForLobby = selectedRolesByLobby[lobby.lobbyGuid] ?? 'spectator';
+                            const selectedOccupant = lobby.playersGuids[selectedRoleForLobby];
+                            const canJoinSelectedRole = selectedOccupant === null || selectedOccupant === user?.guid;
+
+                            return (
+                                <div key={lobby.lobbyGuid} className="lobby__card">
+                                    <div className="lobby__cardHeader">
+                                        <h3 className="lobby__cardTitle">{lobby.lobbyName}</h3>
+                                        <span className="lobby__slots">{takenSlotsCount}/5</span>
+                                    </div>
+
+                                    <div className="lobby__cardActions">
+                                        <select
+                                            className="lobby__select"
+                                            value={selectedRoleForLobby}
+                                            onChange={(event) => handleRoleChangeForLobby(lobby.lobbyGuid, event.target.value as TLobbyRole)}
+                                        >
+                                            {LOBBY_ROLES.map((role) => {
+                                                const occupantGuid = lobby.playersGuids[role];
+                                                const disabled = occupantGuid !== null && occupantGuid !== user?.guid;
+
+                                                return (
+                                                    <option key={role} value={role} disabled={disabled}>
+                                                        {ROLE_LABELS[role]}
+                                                    </option>
+                                                );
+                                            })}
+                                        </select>
+
+                                        <button
+                                            className="lobby__primaryButton"
+                                            disabled={!canJoinSelectedRole}
+                                            onClick={() => handleJoinLobby(lobby.lobbyGuid)}
+                                        >
+                                            Войти
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+
+                <button className="lobby__secondaryButton" onClick={handleCreateLobby}>
+                    Создать комнату
+                </button>
+
+                {isCreateModalOpen && (
+                    <div className="lobby__modalOverlay" onClick={() => setIsCreateModalOpen(false)}>
+                        <div className="lobby__modal" onClick={(event) => event.stopPropagation()}>
+                            <h3 className="lobby__modalTitle">Создать комнату</h3>
+
+                            <input
+                                className="lobby__input"
+                                placeholder="Название комнаты"
+                                value={newLobbyName}
+                                onChange={(event) => setNewLobbyName(event.target.value)}
+                            />
+
+                            <select
+                                className="lobby__select"
+                                value={selectedRole}
+                                onChange={(event) => setSelectedRole(event.target.value as TLobbyRole)}
+                            >
+                                {LOBBY_ROLES.map((role) => (
+                                    <option key={role} value={role}>
+                                        {ROLE_LABELS[role]}
+                                    </option>
+                                ))}
+                            </select>
+
+                            <div className="lobby__modalActions">
+                                <button className="lobby__secondaryButton" onClick={() => setIsCreateModalOpen(false)}>
+                                    Отмена
+                                </button>
+                                <button
+                                    className="lobby__primaryButton"
+                                    disabled={!newLobbyName.trim()}
+                                    onClick={handleConfirmCreateLobby}
+                                >
+                                    Создать
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
     );
 };
 
