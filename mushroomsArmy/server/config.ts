@@ -13,6 +13,7 @@ interface Config {
             GET_USER_BY_SOCKET_ID: string;
             TAKE_DAMAGE_HANDLER: string;
             DESTROY_ARMY: string;
+            MOVE_UNIT: string;
         };
     };
     SOCKET: {
@@ -38,6 +39,7 @@ const CONFIG: Config = {
             GET_USER_BY_SOCKET_ID: 'GET_USER_BY_SOCKET_ID',
             TAKE_DAMAGE_HANDLER: 'TAKE_DAMAGE_HANDLER',
             DESTROY_ARMY: 'DESTROY_ARMY',
+            MOVE_UNIT: 'MOVE_UNIT',
         },
     },
 

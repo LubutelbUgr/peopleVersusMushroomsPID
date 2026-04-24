@@ -9,6 +9,7 @@ const { GAME_STATE, GAME_OVER, LOBBY_START } = CONFIG.SOCKET;
 
 type TStartGame = { guid: string; map: TMap; buildings: TBuildingInput[]; mapGuid: string };
 type TTakeDamage = { armyGuid: string; unitGuid: string; amount: number; type: string };
+type TMoveUnit = { armyGuid: string; unitGuid: string; x: number; y: number };
 type TUser = { guid: string; token: string; socketId: string; name: string };
 
 type TVisibleEntity = {
@@ -39,6 +40,10 @@ class ArmyManager extends BaseManager {
         );
 
         this.mediator.set(CONFIG.MEDIATOR.TRIGGERS.DESTROY_ARMY, (data: unknown) => this.destroyArmy(data as string));
+
+        this.mediator.set(CONFIG.MEDIATOR.TRIGGERS.MOVE_UNIT, (data: unknown) =>
+            this.triggerMoveUnit(data as TMoveUnit)
+        );
 
         if (!this.io) return;
         this.io.on('connection', (socket: Socket) => {
@@ -71,6 +76,19 @@ class ArmyManager extends BaseManager {
         }
 
         return false;
+    }
+
+    private triggerMoveUnit({ armyGuid, unitGuid, x, y }: TMoveUnit): boolean {
+        const army = this.army[armyGuid];
+        if (!army) return false;
+
+        const unit = army.units.find(u => u.guid === unitGuid);
+        if (!unit) return false;
+
+        (unit as any).targetX = x;
+        (unit as any).targetY = y;
+
+        return true;
     }
 
     private async updateArmyCallback(guid: string, armyState: TArmyState) {
