@@ -24,6 +24,10 @@ type TMoveUnitBody = {
     y: number;
 };
 
+type TGetArmyBody = {
+    armyGuid: string;
+};
+
 function Router({ answer, mediator }: TRouterOptions): ExpressRouter {
     const router = express.Router();
 
@@ -56,6 +60,24 @@ function Router({ answer, mediator }: TRouterOptions): ExpressRouter {
 
         if (result) {
             res.json(answer.good(true));
+        } else {
+            res.json(answer.bad(242));
+        }
+    });
+
+    router.post('/getArmy', (req: Request, res: Response) => {
+        const { armyGuid } = req.body as TGetArmyBody;
+
+        if (!armyGuid || Array.isArray(armyGuid)) {
+            res.json(answer.bad(242));
+            return;
+        }
+
+        const GET_ARMY = CONFIG.MEDIATOR.TRIGGERS.GET_ARMY;
+        const army = mediator.get(GET_ARMY, armyGuid);
+
+        if (army) {
+            res.json(answer.good(army));
         } else {
             res.json(answer.bad(242));
         }
@@ -129,7 +151,7 @@ function Router({ answer, mediator }: TRouterOptions): ExpressRouter {
             headers: {
                 'Content-Type': 'application/json;charset=utf-8'
             },
-            body: JSON.stringify({guid: req.body.guid})
+            body: JSON.stringify({ guid: req.body.guid })
         };
         const getLobbiesUrl = `${GLOBAL_CONFIG.MAP.URL}${GLOBAL_CONFIG.URLS.GET_LOBBIES}`;
         const lobbiesResp = await fetch(getLobbiesUrl, params);
