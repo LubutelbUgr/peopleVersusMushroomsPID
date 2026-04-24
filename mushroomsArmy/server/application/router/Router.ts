@@ -17,6 +17,17 @@ type TTakeDamageBody = {
     type: string;
 };
 
+type TMoveUnitBody = {
+    armyGuid: string;
+    unitGuid: string;
+    x: number;
+    y: number;
+};
+
+type TGetArmyBody = {
+    armyGuid: string;
+};
+
 function Router({ answer, mediator }: TRouterOptions): ExpressRouter {
     const router = express.Router();
 
@@ -29,6 +40,47 @@ function Router({ answer, mediator }: TRouterOptions): ExpressRouter {
         const { LOBBY_UPDATED } = mediator.getEventTypes();
         mediator.call(LOBBY_UPDATED, lobbies);
         return res.json(answer.good(true));
+    });
+
+    router.post('/moveUnit', (req: Request, res: Response) => {
+        const { armyGuid, unitGuid, x, y } = req.body as TMoveUnitBody;
+
+        if (!armyGuid || !unitGuid || x === undefined || y === undefined) {
+            res.json(answer.bad(242));
+            return;
+        }
+
+        if (typeof x !== 'number' || typeof y !== 'number' || !isFinite(x) || !isFinite(y)) {
+            res.json(answer.bad(242));
+            return;
+        }
+
+        const MOVE_UNIT = CONFIG.MEDIATOR.TRIGGERS.MOVE_UNIT;
+        const result = mediator.get(MOVE_UNIT, { armyGuid, unitGuid, x, y });
+
+        if (result) {
+            res.json(answer.good(true));
+        } else {
+            res.json(answer.bad(242));
+        }
+    });
+
+    router.post('/getArmy', (req: Request, res: Response) => {
+        const { armyGuid } = req.body as TGetArmyBody;
+
+        if (!armyGuid || Array.isArray(armyGuid)) {
+            res.json(answer.bad(242));
+            return;
+        }
+
+        const GET_ARMY = CONFIG.MEDIATOR.TRIGGERS.GET_ARMY;
+        const army = mediator.get(GET_ARMY, armyGuid);
+
+        if (army) {
+            res.json(answer.good(army));
+        } else {
+            res.json(answer.bad(242));
+        }
     });
 
     router.post('/takeDamage/:armyGuid', (req: Request, res: Response) => {
@@ -99,9 +151,9 @@ function Router({ answer, mediator }: TRouterOptions): ExpressRouter {
             headers: {
                 'Content-Type': 'application/json;charset=utf-8'
             },
-            body: JSON.stringify({guid: req.body.guid})
-        }
-        const getLobbiesUrl = `${GLOBAL_CONFIG.MAP.URL}${GLOBAL_CONFIG.URLS.GET_LOBBIES}`
+            body: JSON.stringify({ guid: req.body.guid })
+        };
+        const getLobbiesUrl = `${GLOBAL_CONFIG.MAP.URL}${GLOBAL_CONFIG.URLS.GET_LOBBIES}`;
         const lobbiesResp = await fetch(getLobbiesUrl, params);
         const lobbies: any = await lobbiesResp.json();
 
