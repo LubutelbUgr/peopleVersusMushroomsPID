@@ -7,7 +7,7 @@ const GLOBAL_CONFIG = require('../../../../../global/globalConfig');
 
 const { GAME_STATE, GAME_OVER, LOBBY_START } = CONFIG.SOCKET;
 
-type TStartGame = { guid: string; map: TMap; buildings: TBuildingInput[]; mapGuid: string };
+type TStartGame = { guid: string; map?: TMap; buildings: TBuildingInput[]; mapGuid: string };
 type TTakeDamage = { armyGuid: string; unitGuid: string; amount: number; type: string };
 type TMoveUnit = { armyGuid: string; unitGuid: string; x: number; y: number };
 type TGetArmy = string;
@@ -24,6 +24,10 @@ type TVisibleEntity = {
 
 type TVisibilityResponse = {
     entities: TVisibleEntity[];
+};
+
+type TReliefResponse = {
+    map: TMap;
 };
 
 class ArmyManager extends BaseManager {
@@ -160,17 +164,31 @@ class ArmyManager extends BaseManager {
         delete this.army[guid];
     }
 
-    private eventStartGame({ guid, map, buildings, mapGuid }: TStartGame): void {
+     private async eventStartGame({ guid, map, buildings, mapGuid }: TStartGame): Promise<void> {
         const user = this.mediator.get(this.TRIGGERS.GET_USER_BY_GUID, guid);
         if (!user) return;
 
         if (this.army[guid]) {
             this.destroyArmy(guid);
         }
+        let resolvedMap = map;
+
+        if (!resolvedMap) {
+            const relief = await this.sendToMap<null, TReliefResponse>(
+                '/getRelief', mapGuid, guid
+            );
+            
+            if (!relief?.map) {
+
+                return;
+            }
+
+            resolvedMap = relief.map;
+        }
 
         this.army[guid] = new Army({
             mapGuid,
-            map,
+            map: resolvedMap,
             buildings,
             common: this.common,
             guid,
