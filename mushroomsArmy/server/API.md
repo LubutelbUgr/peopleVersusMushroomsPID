@@ -69,18 +69,18 @@ Answer<T>: {
     lobbyName: string; - название лобби
     lobbyGuid: string; - гуид лобби
     playersGuids: {    - гуид каждого сервиса в лобби
-        spectator:       string | null,
-        peopleArmy:      string | null,
-        peopleEconomy:   string | null,
-        mushroomArmy:    string | null,
-        mushroomEconomy: string | null,
+        spectator:        string | null,
+        peopleArmy:       string | null,
+        peopleEconomy:    string | null,
+        mushroomsArmy:    string | null,
+        mushroomsEconomy: string | null,
     };
-    playerIsReady: {   - готовность каждого сервиса в лобби
-        spectator:       true | false,
-        peopleArmy:      true | false,
-        peopleEconomy:   true | false,
-        mushroomArmy:    true | false,
-        mushroomEconomy: true | false,
+    playersIsReady: {  - готовность каждого сервиса в лобби
+        spectator:        true | false,
+        peopleArmy:       true | false,
+        peopleEconomy:    true | false,
+        mushroomsArmy:    true | false,
+        mushroomsEconomy: true | false,
     };
 }
 ```
@@ -188,7 +188,9 @@ Answer<T>: {
 
 ## 4. Подробно
 
-### 4.1.1 LOBBY_UPDATED
+### 4.1 ЛОББИ
+
+#### 4.1.1 LOBBY_UPDATED
 
 `POST /lobbyUpdated`
 
@@ -212,7 +214,7 @@ Answer<true>
 
 * `242` - не передан параметр `lobbies`
 
-### 4.1.2 GET_LOBBIES
+#### 4.1.2 GET_LOBBIES
 
 `POST /getLobbies`
 
@@ -236,7 +238,9 @@ Answer<[lobby]>
 
 * `242` - сервис карты вернул ошибку или недоступен
 
-### 4.2.1 GET_ARMY
+### 4.2 АРМИЯ
+
+#### 4.2.1 GET_ARMY
 
 `POST /getArmy`
 
@@ -260,7 +264,7 @@ Answer<ArmyState>
 
 * `242` - не передан `armyGuid`, либо армия с таким гуидом не найдена
 
-### 4.2.2 MOVE_UNIT
+#### 4.2.2 MOVE_UNIT
 
 `POST /moveUnit`
 
@@ -287,7 +291,7 @@ Answer<true>
 
 * `242` - не переданы все параметры, либо `x`/`y` не являются конечными числами, либо армия/юнит не найдены
 
-### 4.2.3 TAKE_DAMAGE
+#### 4.2.3 TAKE_DAMAGE
 
 `POST /takeDamage/:armyGuid`
 
@@ -319,7 +323,7 @@ Answer<true>
 
 * `242` - не переданы все параметры, либо `amount` отрицательный/не является конечным числом, либо армия/цель не найдены
 
-### 4.2.4 START_GAME (`/startGame/:armyGuid`)
+#### 4.2.4 START_GAME (`/startGame/:armyGuid`)
 
 `POST /startGame/:armyGuid`
 
@@ -363,7 +367,7 @@ Answer<true>
 
 * `242` - не переданы `armyGuid`, `mapGuid` или `map`
 
-### 4.2.5 START_GAME (`/startGame`)
+#### 4.2.5 START_GAME (`/startGame`)
 
 `POST /startGame`
 
