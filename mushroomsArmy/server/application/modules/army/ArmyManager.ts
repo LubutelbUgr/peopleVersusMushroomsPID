@@ -26,9 +26,7 @@ type TVisibilityResponse = {
     entities: TVisibleEntity[];
 };
 
-type TReliefResponse = {
-    map: TMap;
-};
+type TReliefResponse = TMap;
 
 class ArmyManager extends BaseManager {
     private army: { [guid: string]: Army };
@@ -174,16 +172,16 @@ class ArmyManager extends BaseManager {
         let resolvedMap = map;
 
         if (!resolvedMap) {
-            const relief = await this.sendToMap<null, TReliefResponse>(
-                '/getRelief', mapGuid, guid
+            const relief = await this.send<{ mapGuid: string; userGuid: string }, TReliefResponse>(
+                `${GLOBAL_CONFIG.MAP.URL}${GLOBAL_CONFIG.URLS.GET_RELIEF}`,
+                { mapGuid, userGuid: guid }
             );
-            
-            if (!relief?.map) {
 
+            if (!relief || !Array.isArray(relief)) {
                 return;
             }
 
-            resolvedMap = relief.map;
+            resolvedMap = relief;
         }
 
         this.army[guid] = new Army({
