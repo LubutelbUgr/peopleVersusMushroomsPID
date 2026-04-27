@@ -1,4 +1,4 @@
-import { GameState, Projectile, TerrainType, Unit } from './types';
+import { GameState, MapTile, Projectile, TerrainType, Unit } from './types';
 import sporometSrc from '../../assets/units/Sporomet.png';
 import champignebSrc from '../../assets/units/Champigneb.png';
 import eblekarSrc from '../../assets/units/Eblekar.png';
@@ -175,20 +175,23 @@ export function drawGame(
     return;
   }
 
-  const cellW = widthCSS / 100;
-  const cellH = heightCSS / 100;
+  const rows = state.map.length;
+  const cols = state.map[0]?.length ?? 0;
 
-  // 1. Отрисовка карты (тайлы 100×100)
-  for (let y = 0; y < 100; y++) {
-    for (let x = 0; x < 100; x++) {
-      const terrain = state.map[y]?.[x];
+  const cellW = cols > 0 ? widthCSS / cols : widthCSS;
+  const cellH = cellW; // по ТЗ: размер тайла = canvasWidth / map[0].length
+
+  // 1. Отрисовка карты (тайлы по state.map)
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const terrain = state.map[y]?.[x] ?? null;
       ctx.fillStyle = getTerrainColor(terrain);
       ctx.fillRect(x * cellW, y * cellH, cellW, cellH);
     }
   }
 
   // 1.5. Сетка
-  drawGrid(ctx, widthCSS, heightCSS, cellW, cellH);
+  drawGrid(ctx, widthCSS, heightCSS, cellW, cellH, rows, cols);
 
   // 2. Отрисовка луж слизи (полупрозрачные, под юнитами)
   state.slimePuddles.forEach(puddle => {
@@ -439,12 +442,17 @@ export function drawGame(
 
 }
 
-function getTerrainColor(type: TerrainType): string {
+function getTerrainColor(type: MapTile | undefined): string {
   switch (type) {
-    case 0: return '#a0d6a0';
-    case 1: return '#4a7db4';
-    case 2: return '#555555';
-    default: return '#a0d6a0';
+    case 0:
+      return '#2ecc71'; // равнина - зелёный
+    case 1:
+      return '#7fd3ff'; // вода - голубой
+    case 2:
+      return '#8b5a2b'; // горы - коричневый
+    case null:
+    default:
+      return '#9e9e9e'; // туман - серый
   }
 }
 
@@ -476,29 +484,41 @@ function getProjectileColor(type: Projectile['type']): string {
 /**
  * Рисует тонкую серую сетку 100×100
  */
-function drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number, cellW: number, cellH: number) {
+function drawGrid(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  cellW: number,
+  cellH: number,
+  rows: number,
+  cols: number
+) {
   ctx.beginPath();
   ctx.strokeStyle = '#cccccc';
   ctx.lineWidth = 0.5;
-  for (let i = 0; i <= 100; i++) {
-    const x = i * cellW;
-    const y = i * cellH;
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, height);
-    ctx.moveTo(0, y);
-    ctx.lineTo(width, y);
+  for (let x = 0; x <= cols; x++) {
+    const px = x * cellW;
+    ctx.moveTo(px, 0);
+    ctx.lineTo(px, height);
+  }
+  for (let y = 0; y <= rows; y++) {
+    const py = y * cellH;
+    ctx.moveTo(0, py);
+    ctx.lineTo(width, py);
   }
   ctx.stroke();
 }
 
 function drawPlaceholder(ctx: CanvasRenderingContext2D, width: number, height: number) {
-  const cellW = width / 100;
-  const cellH = height / 100;
-  for (let y = 0; y < 100; y++) {
-    for (let x = 0; x < 100; x++) {
-      ctx.fillStyle = '#a0d6a0';
+  const rows = 100;
+  const cols = 100;
+  const cellW = width / cols;
+  const cellH = cellW;
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      ctx.fillStyle = getTerrainColor(0);
       ctx.fillRect(x * cellW, y * cellH, cellW, cellH);
     }
   }
-  drawGrid(ctx, width, height, cellW, cellH);
+  drawGrid(ctx, width, height, cellW, cellH, rows, cols);
 }

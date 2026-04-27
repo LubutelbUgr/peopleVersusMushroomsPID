@@ -8,6 +8,8 @@
  */
 export type TerrainType = 0 | 1 | 2;
 
+export type MapTile = TerrainType | null;
+
 /**
  * Игровой юнит (споромёт или шампиньеб)
  * isAlive вычисляется: hp > 0
@@ -62,7 +64,7 @@ export type Projectile = {
  * Полное состояние игры
  */
 export type GameState = {
-  map: TerrainType[][];
+  map: MapTile[][];
   units: Unit[];
   buildings: Building[];
   slimePuddles: SlimePuddle[]; 
