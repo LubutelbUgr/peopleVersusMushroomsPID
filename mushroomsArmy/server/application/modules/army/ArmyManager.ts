@@ -12,6 +12,7 @@ type TTakeDamage = { armyGuid: string; unitGuid: string; amount: number; type: s
 type TMoveUnit = { armyGuid: string; unitGuid: string; x: number; y: number };
 type TGetArmy = string;
 type TSpawnUnit = { armyGuid: string; type: 'sporomet' | 'champigneb' | 'eblekar'; x: number; y: number };
+type TSpawnBuildingUnit = { armyGuid: string; type: 'vzryvomor' | 'sporovaya_bashnya'; x: number; y: number };
 type TUser = { guid: string; token: string; socketId: string; name: string };
 
 type TVisibleEntity = {
@@ -56,6 +57,10 @@ class ArmyManager extends BaseManager {
 
         this.mediator.set(CONFIG.MEDIATOR.TRIGGERS.SPAWN_UNIT, (data: unknown) =>
             this.triggerSpawnUnit(data as TSpawnUnit)
+        );
+
+        this.mediator.set(CONFIG.MEDIATOR.TRIGGERS.SPAWN_BUILDING, (data: unknown) => 
+            this.triggerSpawnBuildingUnit(data as TSpawnBuildingUnit)
         );
 
         if (!this.io) return;
@@ -116,6 +121,13 @@ class ArmyManager extends BaseManager {
         if (!army) return null;
 
         return army.spawnUnit(type, x, y, this.common);
+    }
+
+    private triggerSpawnBuildingUnit({ armyGuid, type, x, y }: TSpawnBuildingUnit): { guid: string } | null {
+        const army = this.army[armyGuid];
+        if (!army) return null;
+
+        return army.spawnBuilding(type, x, y, this.common);
     }
 
     private async updateArmyCallback(guid: string, armyState: TArmyState) {

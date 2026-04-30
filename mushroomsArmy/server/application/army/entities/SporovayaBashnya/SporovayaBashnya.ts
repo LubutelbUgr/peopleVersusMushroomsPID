@@ -4,7 +4,6 @@ import { IBuilding } from "../Vzryvomor/Vzryvomor";
 
 type TSporovayaBashnyaOptions = {
     guid: string;
-    type: string;
     x: number;
     y: number;
     hp: number;
@@ -27,7 +26,7 @@ type TSporovayaBashnyaState = {
 
 class SporovayaBashnya implements IBuilding<TSporovayaBashnyaState> {
     public guid: string;
-    public type: string;
+    public type: string = 'sporovaya_bashnya';
     public x: number;
     public y: number;
     public hp: number;
@@ -47,7 +46,6 @@ class SporovayaBashnya implements IBuilding<TSporovayaBashnyaState> {
 
     constructor(options: TSporovayaBashnyaOptions) {
         this.guid = options.guid;
-        this.type = options.type;
         this.x = options.x;
         this.y = options.y;
         this.hp = options.hp;

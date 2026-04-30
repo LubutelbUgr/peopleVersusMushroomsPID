@@ -88,7 +88,6 @@ export class Army {
             if (building.type === 'sporovaya_bashnya') {
                 this.buildings.push(new SporovayaBashnya({
                     guid: building.guid,
-                    type: building.type,
                     x: building.x,
                     y: building.y,
                     hp: building.hp,
@@ -255,6 +254,15 @@ export class Army {
         return this.units.filter(u => u.isAlive);
     }
 
+    private isOutsideMap(y: number, x: number) {
+        // Проверяем границы карты
+        return y < 0 || y >= this.map.length || x < 0 || x >= (this.map[0]?.length ?? 0);
+    }
+
+    private isInsideMap(y: number, x: number){
+        return !this.isOutsideMap(y, x);
+    }
+
     public spawnUnit(type: 'sporomet' | 'champigneb' | 'eblekar', x: number, y: number, common: Common): { guid: string } | null {
         // Проверяем границы карты
         if (y < 0 || y >= this.map.length || x < 0 || x >= (this.map[0]?.length ?? 0)) {
@@ -278,6 +286,44 @@ export class Army {
         }
 
         return { guid };
+    }
+
+    public spawnBuilding(type: 'vzryvomor' | 'sporovaya_bashnya', x: number, y: number, common: Common){
+        const isValid = (y1: number, x1: number) => {
+            // Тайл должен быть 0 (не вода, не горы, не туман)
+            return this.map[y1][x1] !== 0;
+        }
+
+        let coords = null; 
+        if (type === 'sporovaya_bashnya'){
+            coords = [[y,x], [y + 1, x], [y, x + 1], [y+1, x + 1]];
+        }
+        else if (type === 'vzryvomor'){
+            coords = [[y,x]];
+        }
+        
+        let isOk = 
+            coords?.every(c => {
+                const [y, x] = c;
+                return isValid(y, x) && this.isInsideMap(y, x)
+            })
+        
+        if (isOk) {
+            let guid = common.guid();
+            if (type === 'vzryvomor') {
+                this.buildings.push(new Vzryvomor({ guid: guid, x: x, y: y, hp: 8, maxHp: 8, attackRange: 12 }));
+            }
+            else if (type === 'sporovaya_bashnya') {
+                this.buildings.push(new SporovayaBashnya({ guid: guid, x: x, y: y, hp: 8, maxHp: 8, projectiles: this.projectiles }));
+            }
+            else {
+                return null;
+            }
+            return { guid: guid };
+        }
+        else {
+            return null;
+        }
     }
 
     public destructor(): void {
