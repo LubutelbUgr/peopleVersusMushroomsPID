@@ -205,25 +205,26 @@ function Router({ answer, mediator }: TRouterOptions): ExpressRouter {
     });
 
     router.post('/spawnBuilding', (req: Request, res: Response) => {
-        const payload = req.body as { armyGuid: string, type: 'vzryvomor' | 'sporovaya_bashnya', x: number, y: number };
+        const { armyGuid, type, x, y } = req.body as { armyGuid: string; type: 'vzryvomor' | 'sporovaya_bashnya'; x: number; y: number };
 
-        if (!payload.armyGuid || Array.isArray(payload.armyGuid) || !payload.x || !payload.y) {
+        const validTypes = ['vzryvomor', 'sporovaya_bashnya'];
+        if (!armyGuid || Array.isArray(armyGuid) || !type || !validTypes.includes(type) || x === undefined || y === undefined) {
             res.json(answer.bad(242));
             return;
         }
 
-        const result = mediator.call(CONFIG.MEDIATOR.TRIGGERS.SPAWN_BUILDING, {
-            guid: payload.armyGuid,
-            type: payload.type, 
-            x: payload.x, 
-            y: payload.y
-        });
-
-        if (result === null) {
+        if (typeof x !== 'number' || typeof y !== 'number' || !isFinite(x) || !isFinite(y)) {
             res.json(answer.bad(242));
+            return;
         }
-        else {
-            res.json(answer.good({ guid: result }));
+
+        const SPAWN_BUILDING = CONFIG.MEDIATOR.TRIGGERS.SPAWN_BUILDING;
+        const result = mediator.get(SPAWN_BUILDING, { armyGuid, type, x, y });
+
+        if (result) {
+            res.json(answer.good(result));
+        } else {
+            res.json(answer.bad(242));
         }
     });
     

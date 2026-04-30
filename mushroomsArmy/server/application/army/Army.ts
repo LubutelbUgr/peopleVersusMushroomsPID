@@ -290,8 +290,8 @@ export class Army {
 
     public spawnBuilding(type: 'vzryvomor' | 'sporovaya_bashnya', x: number, y: number, common: Common){
         const isValid = (y1: number, x1: number) => {
-            // Тайл должен быть 0 (не вода, не горы, не туман)
-            return this.map[y1][x1] !== 0;
+            // Тайл должен быть 0 (только равнина — не вода, не горы, не туман)
+            return this.map[y1][x1] === 0;
         }
 
         let coords = null; 
