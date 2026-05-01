@@ -7,9 +7,8 @@ import { GameState } from './types';
 import { PAGES } from '../PageManager';
 import { TUser } from '../../services/server/types';
 import Footer from './Interface/Footer/Footer';
-import Menu from './Interface/Menu/Menu';
-import './Game.css';
 import Header from './Interface/Header/Header';
+import './Game.css';
 
 const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -20,17 +19,17 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
   const [isGameOver, setIsGameOver] = useState(false);
   const [aliveUnitsCount, setAliveUnitsCount] = useState(0);  
 
-  // 1. Состояние камеры и константы
+  // 1. Состояние камеры
   const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 1.0 });
   
   const TILE_SIZE = 64; 
-  const MAP_WIDTH_TILES = 15; // Твои размеры: 10 на 15
+  const MAP_WIDTH_TILES = 15; 
   const MAP_HEIGHT_TILES = 10;
   
   const MIN_ZOOM = 0.4; 
-  const MAX_ZOOM = 15.0; // Максимальное приближение
+  const MAX_ZOOM = 5.0; 
 
-  // Вспомогательная функция для удержания карты в границах экрана
+  // 2. Функция удержания камеры в границах
   const clampCamera = useCallback((x: number, y: number, zoom: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x, y };
@@ -43,14 +42,12 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
     let newX = x;
     let newY = y;
 
-    // Ограничение по X
     if (mapWidthPx > viewWidth) {
       newX = Math.min(0, Math.max(newX, viewWidth - mapWidthPx));
     } else {
-      newX = (viewWidth - mapWidthPx) / 2; // Центрируем, если карта меньше экрана
+      newX = (viewWidth - mapWidthPx) / 2; 
     }
 
-    // Ограничение по Y
     if (mapHeightPx > viewHeight) {
       newY = Math.min(0, Math.max(newY, viewHeight - mapHeightPx));
     } else {
@@ -60,26 +57,28 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
     return { x: newX, y: newY };
   }, []);
 
-  const GET_STORE = mediator.getTriggerTypes().GET_STORE;
-  const user = mediator.get(GET_STORE, 'user') as TUser | null;
+  const GET_STORE = mediator?.getTriggerTypes().GET_STORE;
+  const user = mediator?.get(GET_STORE, 'user') as TUser | null;
   const username = user?.name || 'Игрок';
 
+  // 3. Основная функция отрисовки
   const redrawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !gameStateRef.current) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     const widthCSS = canvas.clientWidth;
     const heightCSS = canvas.clientHeight;
-    if (widthCSS === 0 || heightCSS === 0) return;
 
-    const aliveCount = gameStateRef.current?.units.filter((unit) => unit.hp > 0).length ?? 0;
+    const aliveCount = gameStateRef.current.units.filter((unit) => unit.hp > 0).length;
     setAliveUnitsCount(aliveCount);
 
+    // Передаем камеру в рендерер
     drawGame(ctx, gameStateRef.current, widthCSS, heightCSS, camera);
   }, [camera]);
 
+  // Ресайз
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -105,7 +104,7 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
     return () => window.removeEventListener('resize', resizeCanvas);
   }, [redrawCanvas]);
 
-  // 4. Управление: Колесико (Зум) + WASD/Стрелочки (Перемещение)
+  // 4. Управление (Колесико + WASD)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -113,18 +112,16 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault(); 
       setCamera((prev) => {
-        const zoomSpeed = 0.1;
-        const delta = e.deltaY < 0 ? zoomSpeed : -zoomSpeed;
+        const zoomSpeed = 0.001; 
+        const delta = -e.deltaY * zoomSpeed;
         const newZoom = Math.min(Math.max(prev.zoom + delta, MIN_ZOOM), MAX_ZOOM);
-        
-        // Применяем ограничение, чтобы не "вылететь" за карту при отдалении
         const { x, y } = clampCamera(prev.x, prev.y, newZoom);
         return { x, y, zoom: newZoom };
       });
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      const moveSpeed = 20;
+      const moveSpeed = 30;
       setCamera((prev) => {
         let dx = 0;
         let dy = 0;
@@ -150,7 +147,7 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
     };
   }, [clampCamera]);
 
-  // 5 и 6. Подписки (без изменений)
+  // 5. Подписки
   useEffect(() => {
     if (!mediator) return;
     const EVENT_NAME = CONFIG.MEDIATOR.EVENTS.GAME_STATE_UPDATED;
@@ -176,23 +173,17 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
   };
 
   const handleRestartGame = () => {
-    server.lobbyStart();
+    server?.lobbyStart();
     setIsGameOver(false);
   };
 
   return (
     <div className="game-page">
-      <header className="game-header">
-        <div className="game-user">
-          <strong>{username}</strong>
-          <span className="game-units-counter">
-            Живых: <strong>{aliveUnitsCount}</strong>
-          </span>
-        </div>
-        <button type="button" className="game-exit" onClick={handleExitToLobby}>
-          Выход в лобби
-        </button>
-      </header>
+      <Header 
+        username={username} 
+        aliveUnitsCount={aliveUnitsCount} 
+        onExit={handleExitToLobby} 
+      />
       <div className="game-canvas-wrapper">
         <canvas ref={canvasRef} className="game-canvas" />
       </div>
