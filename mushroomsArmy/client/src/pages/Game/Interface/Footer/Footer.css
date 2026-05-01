@@ -10,22 +10,6 @@
   pointer-events: none;
 }
 
-.game-minimap {
-  pointer-events: auto;
-  width: 220px; 
-  height: 220px; 
-  background: #3b2a20;
-  border: 2px solid #7a5237;
-  border-left: none; 
-  border-bottom: none;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 16px;
-  box-sizing: border-box;
-  color: #d8c7a7;
-  box-shadow: 4px 0 14px rgba(0, 0, 0, 0.5);
-}
 
 .game-footer-main-panel {
   pointer-events: auto;
