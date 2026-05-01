@@ -12,6 +12,8 @@ const Header: React.FC<HeaderProps> = ({ username, onExit }) => {
 
   return (
     <header className="game-header">
+
+
       <div className="header-left">
         <span className="user-nickname">{username}</span>
       </div>
@@ -20,8 +22,11 @@ const Header: React.FC<HeaderProps> = ({ username, onExit }) => {
         <h1 className="game-title">Армия грибов</h1>
       </div>
       
+
+
+
       <div className="header-right">
-        {/* Твоя кнопка со стилями из Header.css */}
+        {/* кнопка со стилями из Header.css */}
         <button 
           id="header-menu-btn" 
           className="menu-button" 
@@ -33,7 +38,7 @@ const Header: React.FC<HeaderProps> = ({ username, onExit }) => {
         {/* Передаем состояние и функцию закрытия внутрь Menu */}
         <Menu 
           isOpen={isMenuOpen} 
-          onClose={() => setIsMenuOpen(false)} 
+          // onClose={() => setIsMenuOpen(false)} 
           onExit={onExit} 
         />
       </div>

@@ -1,3 +1,32 @@
+/* --- СИСТЕМА МАСШТАБИРОВАНИЯ --- */
+
+/* СРЕДНИЙ (по умолчанию) */
+:root {
+  --header-height: 5vh;
+  --footer-height: 7vh;
+  --font-base: 14px;
+  --minimap-size: 150px;
+}
+
+/* МАЛЕНЬКИЙ */
+body[data-game-ui-size="small"] {
+  --header-height: 5vh;
+  --footer-height: 10vh;
+  --font-base: 12px;
+  --minimap-size: 110px;
+}
+
+/* БОЛЬШОЙ */
+body[data-game-ui-size="large"] {
+  --header-height: 9vh;
+  --footer-height: 18vh;
+  --font-base: 18px;
+  --minimap-size: 220px;
+}
+/* ------------------------------- */
+
+
+
 .game-page {
   display: flex;
   flex-direction: column;
@@ -6,18 +35,6 @@
   font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
   padding: 16px;
   box-sizing: border-box;
-}
-
-.game-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #1e1e2f;
-  padding: 10px 20px;
-  border-radius: 12px;
-  color: #ffffff;
-  margin-bottom: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .game-title {
@@ -141,42 +158,4 @@
 .game-overlay-content button:hover {
   background-color: #ffdd44;
   transform: scale(1.02);
-}
-
-/* Мобильная адаптация */
-@media (max-width: 600px) {
-  .game-page {
-    padding: 8px;
-  }
-
-  .game-header {
-    padding: 8px 12px;
-  }
-
-  .game-user {
-    gap: 8px;
-    font-size: 12px;
-  }
-
-  .game-units-counter {
-    font-size: 12px;
-  }
-
-  .game-exit {
-    font-size: 12px;
-    padding: 4px 12px;
-  }
-
-  .game-overlay-content {
-    padding: 20px 32px;
-  }
-
-  .game-overlay-content h2 {
-    font-size: 24px;
-  }
-
-  .game-overlay-content button {
-    font-size: 14px;
-    padding: 8px 20px;
-  }
 }
