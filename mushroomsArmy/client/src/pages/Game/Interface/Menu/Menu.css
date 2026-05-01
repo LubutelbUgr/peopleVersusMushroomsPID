@@ -1,10 +1,21 @@
 .menu-dropdown {
   position: fixed;
-  top: 7vh; /* чуть ниже хедера */
-  right: 0px; /* в правом верхнем углу */
-  width: 200px;
-  height: 300px;
-  background: #3b2a20; /* заливка */
-  border: 2px solid #7a5237;
+  top: 6.5vh; 
+  right: 0px;
+  width: 290px;
+  height: 200px;
+
+  /* background: #3b2a20; заливка */
+  
+
+  background-image: url('../../../../assets/map/menu_background.png'); 
+  background-size: cover;
+  background-position: bottom;
+  background-repeat: no-repeat;
+
+  /* border: 2px solid #7a5237; */
   z-index: 50; /* за хедером (100), перед картой (0) */
-}
+
+
+  
+} 
