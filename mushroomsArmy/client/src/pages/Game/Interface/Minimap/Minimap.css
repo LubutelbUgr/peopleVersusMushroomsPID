@@ -1,17 +1,10 @@
 .game-minimap {
-  pointer-events: auto;
   width: 220px;
   height: 220px;
-  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
-  background: #3b2a20;
-  border: 2px solid #7a5237;
-  border-left: none;
-  border-bottom: none;
+  background: #1f2d24;
   box-sizing: border-box;
-  padding: 8px;
   box-shadow: 4px 0 14px rgba(0, 0, 0, 0.5);
 }
-
 .minimap-field {
   position: relative;
   width: 100%;
