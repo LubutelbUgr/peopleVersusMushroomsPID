@@ -20,6 +20,13 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
+.game-title {
+  margin: 0;
+  font-size: 1.2rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .game-user {
   display: flex;
   align-items: center;

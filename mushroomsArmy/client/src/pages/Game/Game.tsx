@@ -7,7 +7,9 @@ import { GameState } from './types';
 import { PAGES } from '../PageManager';
 import { TUser } from '../../services/server/types';
 import Footer from './Interface/Footer/Footer';
+import Menu from './Interface/Menu/Menu';
 import './Game.css';
+import Header from './Interface/Header/Header';
 
 const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
