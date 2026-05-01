@@ -1,5 +1,5 @@
 // pages/Game/Game.tsx
-import React, { useEffect, useRef, useState, useContext } from 'react';
+import React, { useEffect, useRef, useState, useContext, useCallback } from 'react';
 import { MediatorContext, ServerContext } from '../../App';
 import CONFIG from '../../config';
 import { drawGame } from './renderer';
@@ -14,14 +14,55 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
   const gameStateRef = useRef<GameState | null>(null);
   const mediator = useContext(MediatorContext);
   const server = useContext(ServerContext);
+  
   const [isGameOver, setIsGameOver] = useState(false);
-  const [aliveUnitsCount, setAliveUnitsCount] = useState(0);
+  const [aliveUnitsCount, setAliveUnitsCount] = useState(0);  
+
+  // 1. Состояние камеры и константы
+  const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 1.0 });
+  
+  const TILE_SIZE = 64; 
+  const MAP_WIDTH_TILES = 15; // Твои размеры: 10 на 15
+  const MAP_HEIGHT_TILES = 10;
+  
+  const MIN_ZOOM = 0.4; 
+  const MAX_ZOOM = 15.0; // Максимальное приближение
+
+  // Вспомогательная функция для удержания карты в границах экрана
+  const clampCamera = useCallback((x: number, y: number, zoom: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x, y };
+
+    const mapWidthPx = MAP_WIDTH_TILES * TILE_SIZE * zoom;
+    const mapHeightPx = MAP_HEIGHT_TILES * TILE_SIZE * zoom;
+    const viewWidth = canvas.clientWidth;
+    const viewHeight = canvas.clientHeight;
+
+    let newX = x;
+    let newY = y;
+
+    // Ограничение по X
+    if (mapWidthPx > viewWidth) {
+      newX = Math.min(0, Math.max(newX, viewWidth - mapWidthPx));
+    } else {
+      newX = (viewWidth - mapWidthPx) / 2; // Центрируем, если карта меньше экрана
+    }
+
+    // Ограничение по Y
+    if (mapHeightPx > viewHeight) {
+      newY = Math.min(0, Math.max(newY, viewHeight - mapHeightPx));
+    } else {
+      newY = (viewHeight - mapHeightPx) / 2;
+    }
+
+    return { x: newX, y: newY };
+  }, []);
 
   const GET_STORE = mediator.getTriggerTypes().GET_STORE;
   const user = mediator.get(GET_STORE, 'user') as TUser | null;
   const username = user?.name || 'Игрок';
 
-  const redrawCanvas = () => {
+  const redrawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -34,8 +75,8 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
     const aliveCount = gameStateRef.current?.units.filter((unit) => unit.hp > 0).length ?? 0;
     setAliveUnitsCount(aliveCount);
 
-    drawGame(ctx, gameStateRef.current, widthCSS, heightCSS);
-  };
+    drawGame(ctx, gameStateRef.current, widthCSS, heightCSS, camera);
+  }, [camera]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -58,38 +99,66 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
     };
 
     resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    return () => window.removeEventListener('resize', resizeCanvas);
+  }, [redrawCanvas]);
 
-    let rafId: number | null = null;
-    const handleResize = () => {
-      if (rafId) cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(() => {
-        resizeCanvas();
-        rafId = null;
+  // 4. Управление: Колесико (Зум) + WASD/Стрелочки (Перемещение)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault(); 
+      setCamera((prev) => {
+        const zoomSpeed = 0.1;
+        const delta = e.deltaY < 0 ? zoomSpeed : -zoomSpeed;
+        const newZoom = Math.min(Math.max(prev.zoom + delta, MIN_ZOOM), MAX_ZOOM);
+        
+        // Применяем ограничение, чтобы не "вылететь" за карту при отдалении
+        const { x, y } = clampCamera(prev.x, prev.y, newZoom);
+        return { x, y, zoom: newZoom };
       });
     };
 
-    window.addEventListener('resize', handleResize);
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      if (rafId) cancelAnimationFrame(rafId);
-    };
-  }, []);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const moveSpeed = 20;
+      setCamera((prev) => {
+        let dx = 0;
+        let dy = 0;
 
+        if (e.code === 'KeyW' || e.code === 'ArrowUp') dy = moveSpeed;
+        if (e.code === 'KeyS' || e.code === 'ArrowDown') dy = -moveSpeed;
+        if (e.code === 'KeyA' || e.code === 'ArrowLeft') dx = moveSpeed;
+        if (e.code === 'KeyD' || e.code === 'ArrowRight') dx = -moveSpeed;
+
+        if (dx === 0 && dy === 0) return prev;
+
+        const { x, y } = clampCamera(prev.x + dx, prev.y + dy, prev.zoom);
+        return { ...prev, x, y };
+      });
+    };
+
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      canvas.removeEventListener('wheel', handleWheel);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [clampCamera]);
+
+  // 5 и 6. Подписки (без изменений)
   useEffect(() => {
     if (!mediator) return;
-
     const EVENT_NAME = CONFIG.MEDIATOR.EVENTS.GAME_STATE_UPDATED;
     const handler = (newState: GameState) => {
       gameStateRef.current = newState;
       redrawCanvas();
     };
-
     mediator.subscribe(EVENT_NAME, handler);
-
-    return () => {
-      mediator.unsubscribe(EVENT_NAME, handler);
-    };
-  }, [mediator]);
+    return () => mediator.unsubscribe(EVENT_NAME, handler);
+  }, [mediator, redrawCanvas]);
 
   useEffect(() => {
     if (!mediator) return;
@@ -118,30 +187,21 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
             Живых: <strong>{aliveUnitsCount}</strong>
           </span>
         </div>
-
         <button type="button" className="game-exit" onClick={handleExitToLobby}>
           Выход в лобби
         </button>
       </header>
-
       <div className="game-canvas-wrapper">
         <canvas ref={canvasRef} className="game-canvas" />
       </div>
-
       <Footer />
-
       {isGameOver && (
         <div className="game-overlay">
           <div className="game-overlay-content">
             <h2>Игра окончена</h2>
-
             <div className="game-overlay-actions">
-              <button type="button" onClick={handleRestartGame}>
-                Начать заново
-              </button>
-              <button type="button" onClick={handleExitToLobby}>
-                В лобби
-              </button>
+              <button type="button" onClick={handleRestartGame}>Начать заново</button>
+              <button type="button" onClick={handleExitToLobby}>В лобби</button>
             </div>
           </div>
         </div>
