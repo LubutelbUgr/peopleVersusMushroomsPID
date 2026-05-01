@@ -14,18 +14,15 @@
   height: 120px;
   
   /* 1. Указываем путь к маленькому файлу */
-  background-image: url('../../../../assets/map/tree.webp'); 
+  background-image: 
+  linear-gradient(rgba(25, 13, 1, 0.5), rgba(25, 13, 1, 0.5)),
+  url('../../../../assets/map/tree.webp'); 
   
   /* 2. Включаем цикличный повтор по обеим осям */
   background-repeat: repeat; 
   
   /* 3. Устанавливаем размер */
-  background-size: 200px 200px; 
-
-  /* Оставшиеся стили */
-  background-color: #3b2a20; 
-  border-top: 2px solid #7a5237;
-  border-left: 2px solid #7a5237;
+  background-size: 250px 250px; 
   display: flex;
   align-items: center;
   padding: 0 40px;
@@ -38,8 +35,18 @@
   justify-content: center;
   gap: 8px;
   min-width: 250px;
-  padding-right: 20px;
-  border-right: 1px solid rgba(122, 82, 55, 0.5);
+  padding: 10px 20px; 
+  background-color: rgba(37, 24, 1, 0.578);
+  box-shadow: 
+    inset 4px 4px 10px rgba(0, 0, 0, 0.8), 
+    0 1px 0 rgba(255, 255, 255, 0.15);
+
+  border-top: 2px solid #2a1d15;
+  border-left: 2px solid #2a1d15;
+  border-bottom: 2px solid #2a1d15;
+  border-right: 2px solid #2a1d15;
+  
+  border-radius: 4px; 
 }
 
 .game-economy-resources-title {
