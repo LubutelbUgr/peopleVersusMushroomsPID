@@ -8,6 +8,7 @@ import { PAGES } from '../PageManager';
 import { TUser } from '../../services/server/types';
 import Footer from './Interface/Footer/Footer';
 import './Game.css';
+import Header from './Interface/Header/Header';
 
 const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -110,43 +111,40 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
   };
 
   return (
-    <div className="game-page">
-      <header className="game-header">
-        <div className="game-user">
-          <strong>{username}</strong>
-          <span className="game-units-counter">
-            Живых: <strong>{aliveUnitsCount}</strong>
-          </span>
-        </div>
+  <div className="game-page">
+    {/* Хедер закреплен сверху (position: fixed в CSS) */}
+    <Header 
+      username={username} 
+      aliveUnitsCount={aliveUnitsCount} 
+      onExit={handleExitToLobby} 
+    />
 
-        <button type="button" className="game-exit" onClick={handleExitToLobby}>
-          Выход в лобби
-        </button>
-      </header>
+    {/* Основная игровая область */}
+    <div className="game-canvas-wrapper">
+      <canvas ref={canvasRef} className="game-canvas" />
+    </div>
 
-      <div className="game-canvas-wrapper">
-        <canvas ref={canvasRef} className="game-canvas" />
-      </div>
+    {/* ФУТЕР: Теперь он в коде, ошибка импорта исчезнет.
+        Он сам прилипнет к низу благодаря вашим стилям .game-footer-wrapper */}
+    <Footer />
 
-      <Footer />
-
-      {isGameOver && (
-        <div className="game-overlay">
-          <div className="game-overlay-content">
-            <h2>Игра окончена</h2>
-
-            <div className="game-overlay-actions">
-              <button type="button" onClick={handleRestartGame}>
-                Начать заново
-              </button>
-              <button type="button" onClick={handleExitToLobby}>
-                В лобби
-              </button>
-            </div>
+    {/* Модальное окно окончания игры */}
+    {isGameOver && (
+      <div className="game-overlay">
+        <div className="game-overlay-content">
+          <h2>Игра окончена</h2>
+          <div className="game-overlay-actions">
+            <button type="button" onClick={handleRestartGame}>
+              Начать заново
+            </button>
+            <button type="button" onClick={handleExitToLobby}>
+              В лобби
+            </button>
           </div>
         </div>
-      )}
-    </div>
+      </div>
+    )}
+  </div>
   );
 };
 

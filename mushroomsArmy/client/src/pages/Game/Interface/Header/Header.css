@@ -1,1 +1,52 @@
-/* asd */
+.game-header {
+  /* Позиционирование аналогично футеру */
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 100; /* Чтобы быть поверх карты, как и футер */
+
+  /* Твои параметры размера и визуала */
+  height: 7vh; 
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 20px;
+  background-color: #3b2a20;;
+  border-bottom: 2px solid #7a5237;
+  box-sizing: border-box;
+  border-radius: 0;
+}
+
+/* Контейнер заголовка ставим строго по центру */
+.header-center {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none; /* Чтобы заголовок не мешал кликам, если он перекроет что-то */
+}
+
+/* Обязательно добавь это, если не добавил ранее */
+body {
+  margin: 0;
+  padding: 0;
+}
+
+.user-nickname {
+  font-weight: bold;
+  font-family: sans-serif;
+}
+
+.game-title {
+  margin: 0;
+  font-size: 1.2rem;
+  text-transform: uppercase;
+}
+
+.menu-button {
+  cursor: pointer;
+  padding: 5px 15px;
+  background: #ff0000;
+  border: 1px solid #ff0000;
+  z-index: 100;
+}
