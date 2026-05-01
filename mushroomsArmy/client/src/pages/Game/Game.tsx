@@ -36,7 +36,7 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
     const aliveCount = gameStateRef.current?.units.filter((unit) => unit.hp > 0).length ?? 0;
     setAliveUnitsCount(aliveCount);
 
-    //drawGame(ctx, gameStateRef.current, widthCSS, heightCSS);
+    drawGame(ctx, gameStateRef.current, widthCSS, heightCSS);
   };
 
   useEffect(() => {
