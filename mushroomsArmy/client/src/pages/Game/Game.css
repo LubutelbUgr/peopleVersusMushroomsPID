@@ -8,6 +8,7 @@
   box-sizing: border-box;
 }
 
+/*сюда лепим нашу
 .game-header {
   display: flex;
   justify-content: space-between;
@@ -18,7 +19,7 @@
   color: #ffffff;
   margin-bottom: 16px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-}
+}*/
 
 .game-user {
   display: flex;
