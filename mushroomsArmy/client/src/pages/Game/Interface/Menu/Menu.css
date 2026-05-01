@@ -1,68 +1,65 @@
-.menu-wrapper {
-    position: relative;
+/* Общий стиль для всего меню */
+.menu-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 30px;
+  background: #3b2a20; /* Цвет как у футера */
+  border: 2px solid #7a5237; /* Бордер как у миникарты */
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+  box-sizing: border-box;
 }
 
-.menu-trigger {
-    background: none;
-    border: 1px solid #000;
-    padding: 5px 15px;
-    cursor: pointer;
-    font-family: inherit;
-}
-
-.menu-dropdown {
-    position: absolute;
-    top: calc(100% + 5px); /* Выпадает сразу под хедером */
-    right: 0;
-    width: 220px;
-    background: #d3cccb;
-    border: 1px solid #4a3b39;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-    
-    /* Анимация */
-    visibility: hidden;
-    opacity: 0;
-    transform: translateY(-10px);
-    transition: all 0.2s ease-in-out;
-    z-index: 1000;
-}
-
-.menu-dropdown.show {
-    visibility: visible;
-    opacity: 1;
-    transform: translateY(0);
-}
-
-.menu-inner {
-    padding: 15px;
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-}
-
+/* Заголовки (используем стиль game-stat-label / game-economy-resources-title) */
+.menu-container h1, 
+.menu-container h2,
 .menu-title {
-    text-align: center;
-    margin: 0;
-    font-weight: bold;
+  color: #d8c7a7;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 0;
+  text-align: center;
 }
 
-.size-buttons {
-    display: flex;
-    gap: 10px;
-    margin-top: 5px;
+/* Кнопки меню (полная копия game-footer-button) */
+.menu-container button,
+.menu-button {
+  min-width: 140px;
+  height: 50px;
+  background: #7a5237;
+  border: 1px solid #966642;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.size-buttons button {
-    flex: 1;
-    cursor: pointer;
-    background: #f0f0f0;
-    border: 1px solid #ccc;
+/* Эффект при наведении на кнопку */
+.menu-container button:hover,
+.menu-button:hover {
+  background: #966642;
+  filter: brightness(1.1);
 }
 
-.btn-exit {
-    background: #4a3b39;
-    color: white;
-    border: none;
-    padding: 8px;
-    cursor: pointer;
+/* Если в меню есть значения или цифры (стиль game-stat-value) */
+.menu-value {
+  color: #ffd966;
+  font-size: 20px;
+  font-weight: 800;
+  text-align: center;
+}
+
+/* Если есть описания или текстовые пункты (стиль game-stat-label) */
+.menu-label {
+  color: #d8c7a7;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
