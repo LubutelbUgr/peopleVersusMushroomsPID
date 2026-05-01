@@ -6,6 +6,7 @@ import { drawGame } from './renderer';
 import { GameState } from './types';
 import { PAGES } from '../PageManager';
 import { TUser } from '../../services/server/types';
+import Footer from './Interface/Footer/Footer';
 import './Game.css';
 
 const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
@@ -30,13 +31,12 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
     const heightCSS = canvas.clientHeight;
     if (widthCSS === 0 || heightCSS === 0) return;
 
-    const aliveCount = gameStateRef.current?.units.filter((u) => u.hp > 0).length ?? 0;
+    const aliveCount = gameStateRef.current?.units.filter((unit) => unit.hp > 0).length ?? 0;
     setAliveUnitsCount(aliveCount);
 
     drawGame(ctx, gameStateRef.current, widthCSS, heightCSS);
   };
 
-  // Настройка canvas и ресайза
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -75,7 +75,6 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
     };
   }, []);
 
-  // Подписка на обновления игрового состояния
   useEffect(() => {
     if (!mediator) return;
 
@@ -92,7 +91,6 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
     };
   }, [mediator]);
 
-  // Подписка на окончание игры
   useEffect(() => {
     if (!mediator) return;
     const GAME_OVER_EVENT = CONFIG.MEDIATOR.EVENTS.GAME_OVER;
@@ -129,6 +127,8 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
       <div className="game-canvas-wrapper">
         <canvas ref={canvasRef} className="game-canvas" />
       </div>
+
+      <Footer />
 
       {isGameOver && (
         <div className="game-overlay">
