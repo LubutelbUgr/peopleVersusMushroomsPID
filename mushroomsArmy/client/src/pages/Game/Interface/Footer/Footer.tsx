@@ -26,7 +26,7 @@ const getFooterResources = (state: GameState | null): FooterResource[] => {
       value: aliveUnits.filter((unit) => unit.type === 'champigneb').length,
     },
     {
-      label: 'Эблекарей',
+      label: 'Еблекарей',
       value: aliveUnits.filter((unit) => unit.type === 'eblekar').length,
     },
     {
