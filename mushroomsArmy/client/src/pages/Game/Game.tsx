@@ -27,17 +27,30 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx || !gameStateRef.current) return;
 
     const widthCSS = canvas.clientWidth;
     const heightCSS = canvas.clientHeight;
-    if (widthCSS === 0 || heightCSS === 0) return;
 
-    const aliveCount = gameStateRef.current?.units.filter((unit) => unit.hp > 0).length ?? 0;
-    setAliveUnitsCount(aliveCount);
-
+    // Рисуем текущее состояние с учетом обновленной камеры
     drawGame(ctx, gameStateRef.current, widthCSS, heightCSS);
   };
+
+  useEffect(() => {
+    let rafId: number;
+
+    const renderLoop = () => {
+      // Вызываем перерисовку каждый кадр
+      redrawCanvas();
+      rafId = requestAnimationFrame(renderLoop);
+    };
+
+    rafId = requestAnimationFrame(renderLoop);
+
+    return () => {
+      cancelAnimationFrame(rafId); // Остановка при выходе из игры
+    };
+  }, []); // Запускается один раз при старте
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -78,20 +91,20 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
   }, []);
 
   useEffect(() => {
-    if (!mediator) return;
+  if (!mediator) return;
 
-    const EVENT_NAME = CONFIG.MEDIATOR.EVENTS.GAME_STATE_UPDATED;
-    const handler = (newState: GameState) => {
-      gameStateRef.current = newState;
-      redrawCanvas();
-    };
+  const EVENT_NAME = CONFIG.MEDIATOR.EVENTS.GAME_STATE_UPDATED;
+  const handler = (newState: GameState) => {
+    gameStateRef.current = newState;
+    
+    // Считаем юнитов только здесь (когда пришли данные), а не в цикле отрисовки
+    const aliveCount = newState.units.filter((unit) => unit.hp > 0).length ?? 0;
+    setAliveUnitsCount(aliveCount);
+  };
 
-    mediator.subscribe(EVENT_NAME, handler);
-
-    return () => {
-      mediator.unsubscribe(EVENT_NAME, handler);
-    };
-  }, [mediator]);
+  mediator.subscribe(EVENT_NAME, handler);
+  return () => mediator.unsubscribe(EVENT_NAME, handler);
+}, [mediator]);
 
   useEffect(() => {
     if (!mediator) return;
@@ -112,39 +125,39 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
   };
 
   return (
-  <div className="game-page">
-    {/* Хедер закреплен сверху (position: fixed в CSS) */}
-    <Header 
-    username={username} 
-    onExit={handleExitToLobby} 
-    />
+    <div className="game-page">
+      {/* Хедер закреплен сверху (position: fixed в CSS) */}
+      <Header
+        username={username}
+        onExit={handleExitToLobby}
+      />
 
-    {/* Основная игровая область */}
-    <div className="game-canvas-wrapper">
-      <canvas ref={canvasRef} className="game-canvas" />
-    </div>
+      {/* Основная игровая область */}
+      <div className="game-canvas-wrapper">
+        <canvas ref={canvasRef} className="game-canvas" />
+      </div>
 
-    {/* ФУТЕР: Теперь он в коде, ошибка импорта исчезнет.
+      {/* ФУТЕР: Теперь он в коде, ошибка импорта исчезнет.
         Он сам прилипнет к низу благодаря вашим стилям .game-footer-wrapper */}
-    <Footer />
+      <Footer />
 
-    {/* Модальное окно окончания игры */}
-    {isGameOver && (
-      <div className="game-overlay">
-        <div className="game-overlay-content">
-          <h2>Игра окончена</h2>
-          <div className="game-overlay-actions">
-            <button type="button" onClick={handleRestartGame}>
-              Начать заново
-            </button>
-            <button type="button" onClick={handleExitToLobby}>
-              В лобби
-            </button>
+      {/* Модальное окно окончания игры */}
+      {isGameOver && (
+        <div className="game-overlay">
+          <div className="game-overlay-content">
+            <h2>Игра окончена</h2>
+            <div className="game-overlay-actions">
+              <button type="button" onClick={handleRestartGame}>
+                Начать заново
+              </button>
+              <button type="button" onClick={handleExitToLobby}>
+                В лобби
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    )}
-  </div>
+      )}
+    </div>
   );
 };
 
