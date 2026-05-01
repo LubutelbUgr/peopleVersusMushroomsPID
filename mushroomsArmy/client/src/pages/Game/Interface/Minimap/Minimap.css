@@ -2,6 +2,7 @@
   pointer-events: auto;
   width: 220px;
   height: 220px;
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
   background: #3b2a20;
   border: 2px solid #7a5237;
   border-left: none;

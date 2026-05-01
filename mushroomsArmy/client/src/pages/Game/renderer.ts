@@ -16,509 +16,240 @@ import vzryvomorFrame10 from '../../assets/buildings/vzryvomor/frame_10.png';
 import sporovayaBashnyaIdle from '../../assets/buildings/sporovaya_bashnya/idle.png';
 import sporovayaBashnyaAttack from '../../assets/buildings/sporovaya_bashnya/attack.png';
 import sporovayaBashnyaDestroyed from '../../assets/buildings/sporovaya_bashnya/destroyed.png';
-import {
-  getVzryvomorFrameKey,
-  stepVzryvomorAnimation,
-  VZRYVOMOR_FRAME_MS,
-} from './vzryvomorAnimation';
 import champignebExplFrame0 from '../../assets/units/champigneb_explosion/frame_0.png';
 import champignebExplFrame1 from '../../assets/units/champigneb_explosion/frame_1.png';
 import champignebExplFrame2 from '../../assets/units/champigneb_explosion/frame_2.png';
 import champignebExplFrame3 from '../../assets/units/champigneb_explosion/frame_3.png';
 import champignebExplFrame4 from '../../assets/units/champigneb_explosion/frame_4.png';
+import {
+  getVzryvomorFrameKey,
+  stepVzryvomorAnimation,
+  VZRYVOMOR_FRAME_MS,
+} from './vzryvomorAnimation';
 
-const CHAMPIGNEB_EXPL_DURATION = 1000; // 1 секунда
+// --- КОНСТАНТЫ -------------------------------------------------------------
+const TILE_SIZE = 64; 
+const CHAMPIGNEB_EXPL_DURATION = 1000;
 const CHAMPIGNEB_EXPLOSION_FRAME_COUNT = 5;
 
-
+// --- КЭШ И СОСТОЯНИЯ -------------------------------------------------------
 const unitImages: Record<string, HTMLImageElement> = {};
+const buildingImages: Record<string, HTMLImageElement> = {};
 const activeProjectiles = new Map<string, Projectile & { duration: number }>();
-
-// ── Анимации взрывов шампиньебов ─────────────────────────────────────────────
-const CHAMPIGNEB_EXPL_FRAME_SRCS: string[] = [
-  champignebExplFrame0,
-  champignebExplFrame1,
-  champignebExplFrame2,
-  champignebExplFrame3,
-  champignebExplFrame4,
-];
-const champignebExplImages: HTMLImageElement[] = CHAMPIGNEB_EXPL_FRAME_SRCS.map(src => {
-  const img = new Image();
-  img.src = src;
-  return img;
-});
-
-/** guid → {x, y, startTime} — активные взрывы шампиньебов */
+const buildingAnimState: Record<string, { frame: number; lastFrameTime: number }> = {};
 const champignebExplosions = new Map<string, { x: number; y: number; startTime: number }>();
-/** guid → последнее hp, чтобы поймать момент смерти */
 const prevChampignebHp = new Map<string, number>();
 
-const buildingImages: Record<string, HTMLImageElement> = {};
+const CHAMPIGNEB_EXPL_FRAME_SRCS = [
+  champignebExplFrame0, champignebExplFrame1, champignebExplFrame2, 
+  champignebExplFrame3, champignebExplFrame4
+];
+const champignebExplImages = CHAMPIGNEB_EXPL_FRAME_SRCS.map(src => {
+  const img = new Image(); img.src = src; return img;
+});
 
-const VZRYVOMOR_FRAME_SRCS: string[] = [
-  vzryvomorFrame0,
-  vzryvomorFrame1,
-  vzryvomorFrame2,
-  vzryvomorFrame3,
-  vzryvomorFrame4,
-  vzryvomorFrame5,
-  vzryvomorFrame6,
-  vzryvomorFrame7,
-  vzryvomorFrame8,
-  vzryvomorFrame9,
-  vzryvomorFrame10,
+const VZRYVOMOR_FRAME_SRCS = [
+  vzryvomorFrame0, vzryvomorFrame1, vzryvomorFrame2, vzryvomorFrame3, vzryvomorFrame4,
+  vzryvomorFrame5, vzryvomorFrame6, vzryvomorFrame7, vzryvomorFrame8, vzryvomorFrame9, vzryvomorFrame10
 ];
 
-/** Возвращает картинку здания по стабильному ключу и URL (как getUnitImage, но с явным src). */
+// --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ------------------------------------------------
+
 function getBuildingImage(key: string, src: string | undefined): HTMLImageElement | undefined {
-  if (src === undefined) return undefined;
+  if (src === undefined) return buildingImages[key];
   if (!buildingImages[key]) {
-    const img = new Image();
-    img.src = src;
-    buildingImages[key] = img;
+    const img = new Image(); img.src = src; buildingImages[key] = img;
   }
   return buildingImages[key];
 }
 
-/** Картинка реально готова к отрисовке (не битая, загрузка завершена). */
 function isImageDrawable(img: HTMLImageElement | undefined): img is HTMLImageElement {
   return img !== undefined && img.complete && img.naturalWidth > 0;
 }
 
-/**
- * Безопасный drawImage: при сбое canvas (редко: битое изображение, taint) возвращает false —
- * тогда рисуем fillRect-fallback как раньше.
- */
-function tryDrawImageScaled(
-  ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
-  dx: number,
-  dy: number,
-  dw: number,
-  dh: number
-): boolean {
-  try {
-    ctx.drawImage(img, dx, dy, dw, dh);
-    return true;
-  } catch {
-    return false;
-  }
+function tryDrawImageScaled(ctx: CanvasRenderingContext2D, img: HTMLImageElement, dx: number, dy: number, dw: number, dh: number) {
+  try { ctx.drawImage(img, dx, dy, dw, dh); return true; } catch { return false; }
 }
 
-function preloadBuildingImages(): void {
-  VZRYVOMOR_FRAME_SRCS.forEach((src, i) => {
-    getBuildingImage(getVzryvomorFrameKey(i), src);
-  });
-  getBuildingImage('sporovaya_bashnya:idle', sporovayaBashnyaIdle);
-  getBuildingImage('sporovaya_bashnya:attack', sporovayaBashnyaAttack);
-  getBuildingImage('sporovaya_bashnya:destroyed', sporovayaBashnyaDestroyed);
-}
-
-preloadBuildingImages();
-
-const VZRYVOMOR_FRAME_COUNT = VZRYVOMOR_FRAME_SRCS.length;
-
-/** Текущий кадр взрывомора и время последней смены кадра (по guid здания). */
-const buildingAnimState: Record<string, { frame: number; lastFrameTime: number }> = {};
-
-/**
- * Обновляет состояние анимации взрывомора и возвращает индекс кадра 0 … frameCount-1.
- * При isExploding=false кадр сбрасывается (запись удаляется), при отрисовке считается 0.
- */
 function updateVzryvomorAnimation(guid: string, isExploding: boolean): number {
   const now = Date.now();
   const { next, frameIndex } = stepVzryvomorAnimation(
-    buildingAnimState[guid],
-    isExploding,
-    now,
-    VZRYVOMOR_FRAME_COUNT,
-    VZRYVOMOR_FRAME_MS
+    buildingAnimState[guid], isExploding, now, VZRYVOMOR_FRAME_SRCS.length, VZRYVOMOR_FRAME_MS
   );
-  if (next === undefined) {
-    delete buildingAnimState[guid];
-  } else {
-    buildingAnimState[guid] = next;
-  }
+  if (next === undefined) delete buildingAnimState[guid];
+  else buildingAnimState[guid] = next;
   return frameIndex;
 }
 
 function getUnitImage(unit: Unit): HTMLImageElement | undefined {
-
-  let getImage = (unit: Unit) => {
-    switch (unit.type) {
-      case 'sporomet': return sporometSrc;
-      case 'champigneb': return champignebSrc;
-      case 'eblekar': return eblekarSrc;
-      default: return undefined;
-    }
-  }
-
   if (!unitImages[unit.type]) {
-    const imgSrc = getImage(unit);
-    if (imgSrc === undefined) return undefined;
-
-    const img = new Image();
-    img.src = imgSrc;
-    unitImages[unit.type] = img;
+    const srcs: Record<string, string> = { sporomet: sporometSrc, champigneb: champignebSrc, eblekar: eblekarSrc };
+    const src = srcs[unit.type];
+    if (!src) return undefined;
+    const img = new Image(); img.src = src; unitImages[unit.type] = img;
   }
   return unitImages[unit.type];
 }
+
+// Предзагрузка
+VZRYVOMOR_FRAME_SRCS.forEach((src, i) => getBuildingImage(getVzryvomorFrameKey(i), src));
+getBuildingImage('sporovaya_bashnya:idle', sporovayaBashnyaIdle);
+getBuildingImage('sporovaya_bashnya:attack', sporovayaBashnyaAttack);
+getBuildingImage('sporovaya_bashnya:destroyed', sporovayaBashnyaDestroyed);
+
+// --- ОСНОВНОЙ РЕНДЕР -------------------------------------------------------
 
 export function drawGame(
   ctx: CanvasRenderingContext2D,
   state: GameState | null,
   widthCSS: number,
-  heightCSS: number
+  heightCSS: number,
+  camera: { x: number, y: number, zoom: number }
 ) {
   if (!state) {
     drawPlaceholder(ctx, widthCSS, heightCSS);
     return;
   }
 
+  const now = Date.now();
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, widthCSS, heightCSS);
+  
+  ctx.save();
+  // ПРИМЕНЕНИЕ КАМЕРЫ
+  ctx.translate(camera.x, camera.y);
+  ctx.scale(camera.zoom, camera.zoom);
+
+  const cellW = TILE_SIZE;
+  const cellH = TILE_SIZE;
   const rows = state.map.length;
   const cols = state.map[0]?.length ?? 0;
 
-  const cellW = cols > 0 ? widthCSS / cols : widthCSS;
-  const cellH = cellW; // по ТЗ: размер тайла = canvasWidth / map[0].length
-
-  // 1. Отрисовка карты (тайлы по state.map)
+  // 1. Карта
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
-      const terrain = state.map[y]?.[x] ?? null;
-      ctx.fillStyle = getTerrainColor(terrain);
+      ctx.fillStyle = getTerrainColor(state.map[y]?.[x]);
       ctx.fillRect(x * cellW, y * cellH, cellW, cellH);
     }
   }
 
-  // 1.5. Сетка
-  drawGrid(ctx, widthCSS, heightCSS, cellW, cellH, rows, cols);
+  drawGrid(ctx, cols * cellW, rows * cellH, cellW, cellH, rows, cols);
 
-  // 2. Отрисовка луж слизи (полупрозрачные, под юнитами)
+  // 2. Слизь
   state.slimePuddles.forEach(puddle => {
-    const cx = puddle.x * cellW + cellW / 2;
-    const cy = puddle.y * cellH + cellH / 2;
-    const radiusPx = puddle.radius * Math.min(cellW, cellH);
     ctx.beginPath();
-    ctx.arc(cx, cy, radiusPx, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(76, 175, 80, 0.4)'; // зелёный с прозрачностью 0.4
+    ctx.arc(puddle.x * cellW + cellW/2, puddle.y * cellH + cellH/2, puddle.radius * cellW, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(76, 175, 80, 0.4)';
     ctx.fill();
   });
 
-  // 3. Отрисовка зданий (вражеские — красные; сооружения грибов — отдельный вид)
-  const activeVzryvomorGuids = new Set(
-    (state.buildings ?? [])
-      .filter(b => b.type === 'vzryvomor' && b.hp > 0)
-      .map(b => b.guid)
-  );
-
-  (state.buildings ?? []).forEach(building => {
+  // 3. Здания
+  const activeVzryvomorGuids = new Set((state.buildings ?? []).filter(b => b.type === 'vzryvomor').map(b => b.guid));
+  state.buildings?.forEach(building => {
     if (building.hp <= 0) return;
-
     const bx = building.x * cellW;
     const by = building.y * cellH;
-    const hpPercent =
-      building.maxHp > 0
-        ? Math.max(0, Math.min(1, building.hp / building.maxHp))
-        : 0;
+    const hpPercent = building.hp / building.maxHp;
 
     if (building.type === 'vzryvomor') {
-      const frameIndex = updateVzryvomorAnimation(building.guid, building.isExploding === true);
-      const fi = Math.max(0, Math.min(frameIndex, VZRYVOMOR_FRAME_COUNT - 1));
-      const vzImg = getBuildingImage(getVzryvomorFrameKey(fi), VZRYVOMOR_FRAME_SRCS[fi]);
-
-      const barHeight = 4;
-      let barX: number;
-      let barY: number;
-      let barWidth: number;
-
-      if (isImageDrawable(vzImg) && tryDrawImageScaled(ctx, vzImg, bx, by, cellW, cellH)) {
-        barX = bx;
-        barY = by - 6;
-        barWidth = cellW;
-      } else {
-        const cx = bx + cellW / 2;
-        const cy = by + cellH / 2;
-        const side = Math.min(cellW, cellH) * 0.88;
-        const half = side / 2;
-        ctx.fillStyle = '#f1c40f';
-        ctx.fillRect(cx - half, cy - half, side, side);
-        ctx.strokeStyle = '#b7950b';
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(cx - half, cy - half, side, side);
-        ctx.fillStyle = '#1a1a1a';
-        ctx.font = `bold ${Math.max(10, side * 0.42)}px Arial`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('В', cx, cy);
-        barWidth = side;
-        barX = cx - barWidth / 2;
-        barY = cy - half - 6;
-      }
-
-      ctx.fillStyle = '#d32f2f';
-      ctx.fillRect(barX, barY, barWidth, barHeight);
-      ctx.fillStyle = '#4caf50';
-      ctx.fillRect(barX, barY, barWidth * hpPercent, barHeight);
-      return;
+      const fi = updateVzryvomorAnimation(building.guid, building.isExploding === true);
+      const img = getBuildingImage(getVzryvomorFrameKey(fi), VZRYVOMOR_FRAME_SRCS[fi]);
+      if (isImageDrawable(img)) tryDrawImageScaled(ctx, img, bx, by, cellW, cellH);
+    } else if (building.type === 'sporovaya_bashnya') {
+      const destroyed = building.hp <= 0;
+      const key = destroyed ? 'sporovaya_bashnya:destroyed' : (building.isAttacking ? 'sporovaya_bashnya:attack' : 'sporovaya_bashnya:idle');
+      const img = getBuildingImage(key, undefined);
+      if (isImageDrawable(img)) tryDrawImageScaled(ctx, img, bx, by, cellW * (building.sizeX ?? 2), cellH * (building.sizeY ?? 2));
     }
 
-    if (building.type === 'sporovaya_bashnya') {
-      const sx = building.sizeX ?? 2;
-      const sy = building.sizeY ?? 2;
-      const px = bx;
-      const py = by;
-      const pw = sx * cellW;
-      const ph = sy * cellH;
-
-      const destroyed = building.isAlive === false || building.hp <= 0;
-      const attacking = !destroyed && building.isAttacking === true;
-      const sbImg = destroyed
-        ? getBuildingImage('sporovaya_bashnya:destroyed', sporovayaBashnyaDestroyed)
-        : attacking
-          ? getBuildingImage('sporovaya_bashnya:attack', sporovayaBashnyaAttack)
-          : getBuildingImage('sporovaya_bashnya:idle', sporovayaBashnyaIdle);
-
-      if (!isImageDrawable(sbImg) || !tryDrawImageScaled(ctx, sbImg, px, py, pw, ph)) {
-        ctx.fillStyle = '#4e342e';
-        ctx.fillRect(px, py, pw, ph);
-        ctx.strokeStyle = '#3e2723';
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(px + 0.75, py + 0.75, pw - 1.5, ph - 1.5);
-        ctx.fillStyle = '#efebe9';
-        ctx.font = `bold ${Math.max(9, Math.min(cellW, cellH) * 0.32)}px Arial`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('СБ', px + pw / 2, py + ph / 2);
-      }
-
-      const barWidth = pw;
-      const barHeight = 4;
-      const barX = px;
-      const barY = py - 6;
-      ctx.fillStyle = '#d32f2f';
-      ctx.fillRect(barX, barY, barWidth, barHeight);
-      ctx.fillStyle = '#4caf50';
-      ctx.fillRect(barX, barY, barWidth * hpPercent, barHeight);
-      return;
-    }
-
-    // Вражеские здания: дом, казармы, башня — прежний красный стиль
-    const bw = cellW * 1.4;
-    const bh = cellH * 1.4;
-    const bOffX = bx - bw / 2 + cellW / 2;
-    const bOffY = by - bh / 2 + cellH / 2;
-
-    ctx.fillStyle = '#c0392b';
-    ctx.fillRect(bOffX, bOffY, bw, bh);
-    ctx.strokeStyle = '#7b241c';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(bOffX, bOffY, bw, bh);
-
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${Math.max(8, cellW * 0.4)}px Arial`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    const label = building.type === 'house' ? 'Д' : building.type === 'barracks' ? 'Б' : 'Т';
-    ctx.fillText(label, bx + cellW / 2, by + cellH / 2);
-
-    const barWidth = bw;
-    const barHeight = 4;
-    const barX = bOffX;
-    const barY = bOffY - 6;
+    // HP Bar зданий
     ctx.fillStyle = '#d32f2f';
-    ctx.fillRect(barX, barY, barWidth, barHeight);
+    ctx.fillRect(bx, by - 6, cellW, 4);
     ctx.fillStyle = '#4caf50';
-    ctx.fillRect(barX, barY, barWidth * hpPercent, barHeight);
+    ctx.fillRect(bx, by - 6, cellW * hpPercent, 4);
   });
 
-  for (const guid of Object.keys(buildingAnimState)) {
-    if (!activeVzryvomorGuids.has(guid)) {
-      delete buildingAnimState[guid];
-    }
+  // 4. Снаряды
+  state.projectiles?.forEach(p => {
+    if (!activeProjectiles.has(p.guid)) activeProjectiles.set(p.guid, { ...p, duration: getProjectileDuration(p.type) });
+  });
+  for (const [guid, p] of activeProjectiles.entries()) {
+    const elapsed = (now - p.createdAt) / p.duration;
+    if (elapsed >= 1) { activeProjectiles.delete(guid); continue; }
+    const curX = (p.fromX + (p.toX - p.fromX) * elapsed) * cellW + cellW/2;
+    const curY = (p.fromY + (p.toY - p.fromY) * elapsed) * cellH + cellH/2;
+    ctx.beginPath(); ctx.arc(curX, curY, 4, 0, Math.PI * 2);
+    ctx.fillStyle = getProjectileColor(p.type); ctx.fill();
   }
 
-  // Отрисовка снарядов
-  const now = Date.now();
-  for (const projectile of state.projectiles ?? []) {
-    if (!activeProjectiles.has(projectile.guid)) {
-      activeProjectiles.set(projectile.guid, {
-        ...projectile,
-        duration: getProjectileDuration(projectile.type),
-      });
-    }
-  }
-
-  for (const [guid, projectile] of activeProjectiles.entries()) {
-    const elapsed = Math.max(0, (now - projectile.createdAt) / projectile.duration);
-    if (elapsed >= 1) {
-      activeProjectiles.delete(guid);
-      continue;
-    }
-
-    const x = projectile.fromX + (projectile.toX - projectile.fromX) * elapsed;
-    const y = projectile.fromY + (projectile.toY - projectile.fromY) * elapsed;
-    const px = x * cellW + cellW / 2;
-    const py = y * cellH + cellH / 2;
-
-    ctx.beginPath();
-    ctx.arc(px, py, 4, 0, Math.PI * 2);
-    ctx.fillStyle = getProjectileColor(projectile.type);
-    ctx.fill();
-  }
-
-  // 4a. Ловим смерть шампиньебов и запускаем взрыв на 1 секунду
-  const now2 = Date.now();
+  // 5. Взрывы шампиньебов
   state.units.forEach(unit => {
     if (unit.type !== 'champigneb') return;
     const prevHp = prevChampignebHp.get(unit.guid) ?? unit.hp;
     if (unit.hp <= 0 && prevHp > 0 && !champignebExplosions.has(unit.guid)) {
-      champignebExplosions.set(unit.guid, { x: unit.x, y: unit.y, startTime: now2 });
+      champignebExplosions.set(unit.guid, { x: unit.x, y: unit.y, startTime: now });
     }
     prevChampignebHp.set(unit.guid, unit.hp);
   });
 
-  // 4b. Рисуем активные взрывы
   for (const [guid, entry] of champignebExplosions.entries()) {
-    const elapsed = now2 - entry.startTime;
-    if (elapsed >= CHAMPIGNEB_EXPL_DURATION) {
-      champignebExplosions.delete(guid);
-      prevChampignebHp.delete(guid);
-      continue;
-    }
-    const fi = Math.min(
-      Math.floor((elapsed / CHAMPIGNEB_EXPL_DURATION) * CHAMPIGNEB_EXPLOSION_FRAME_COUNT),
-      CHAMPIGNEB_EXPLOSION_FRAME_COUNT - 1
-    );
-    const cx = entry.x * cellW + cellW / 2;
-    const cy = entry.y * cellH + cellH / 2;
-    const size = 20 * Math.min(cellW, cellH);
+    const elapsed = now - entry.startTime;
+    if (elapsed >= CHAMPIGNEB_EXPL_DURATION) { champignebExplosions.delete(guid); continue; }
+    const fi = Math.min(Math.floor((elapsed / CHAMPIGNEB_EXPL_DURATION) * CHAMPIGNEB_EXPLOSION_FRAME_COUNT), CHAMPIGNEB_EXPLOSION_FRAME_COUNT - 1);
+    const size = cellW * 2;
     const img = champignebExplImages[fi];
-    if (isImageDrawable(img)) {
-      tryDrawImageScaled(ctx, img, cx - size / 2, cy - size / 2, size, size);
-    } else {
-      const alpha = 1 - elapsed / CHAMPIGNEB_EXPL_DURATION;
-      ctx.beginPath();
-      ctx.arc(cx, cy, size / 2, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(255,152,0,${alpha * 0.85})`;
-      ctx.fill();
-      ctx.strokeStyle = `rgba(255,80,0,${alpha})`;
-      ctx.lineWidth = 3;
-      ctx.stroke();
-    }
+    if (isImageDrawable(img)) tryDrawImageScaled(ctx, img, entry.x * cellW + cellW/2 - size/2, entry.y * cellH + cellH/2 - size/2, size, size);
   }
 
-  // 4. Отрисовка юнитов (только живых)
+  // 6. Юниты
   state.units.forEach(unit => {
-    if (unit.hp <= 0) return; // мёртвых не рисуем
-
+    if (unit.hp <= 0) return;
     const cx = unit.x * cellW + cellW / 2;
     const cy = unit.y * cellH + cellH / 2;
-    const radius = Math.min(cellW, cellH) * 0.35;
-    const size = radius * 2;
-
+    const radius = cellW * 0.35;
     const img = getUnitImage(unit);
-    if (!isImageDrawable(img) || !tryDrawImageScaled(ctx, img, cx - size / 2, cy - size / 2, size, size)) {
-      ctx.beginPath();
-      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-      ctx.fillStyle = unit.type === 'sporomet' ? '#4caf50' : unit.type === 'eblekar' ? '#e040fb' : '#ff9800';
-      ctx.fill();
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 1;
-      ctx.stroke();
+
+    if (isImageDrawable(img)) {
+      tryDrawImageScaled(ctx, img, cx - radius, cy - radius, radius * 2, radius * 2);
+    } else {
+      ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.fillStyle = unit.type === 'sporomet' ? '#4caf50' : '#ff9800'; ctx.fill();
     }
 
-    const barWidth = radius * 1.8;
-    const barHeight = 5;
-    const barX = cx - barWidth / 2;
-    const barY = cy - radius - 5;
-
-    ctx.fillStyle = '#d32f2f';
-    ctx.fillRect(barX, barY, barWidth, barHeight);
-
-    const hpPercent = Math.max(0, Math.min(1, unit.hp / unit.maxHp));
-    ctx.fillStyle = '#4caf50';
-    ctx.fillRect(barX, barY, barWidth * hpPercent, barHeight);
+    // HP Bar юнитов
+    ctx.fillStyle = '#d32f2f'; ctx.fillRect(cx - radius, cy - radius - 8, radius * 2, 4);
+    ctx.fillStyle = '#4caf50'; ctx.fillRect(cx - radius, cy - radius - 8, (radius * 2) * (unit.hp / unit.maxHp), 4);
   });
 
+  ctx.restore();
 }
+
+// --- ХЕЛПЕРЫ ---------------------------------------------------------------
 
 function getTerrainColor(type: MapTile | undefined): string {
   switch (type) {
-    case 0:
-      return '#2ecc71'; // равнина - зелёный
-    case 1:
-      return '#7fd3ff'; // вода - голубой
-    case 2:
-      return '#8b5a2b'; // горы - коричневый
-    case null:
-    default:
-      return '#9e9e9e'; // туман - серый
+    case 0: return '#2ecc71';
+    case 1: return '#7fd3ff';
+    case 2: return '#8b5a2b';
+    default: return '#9e9e9e';
   }
 }
 
 function getProjectileDuration(type: Projectile['type']): number {
-  switch (type) {
-    case 'sporovaya_bashnya':
-      return 500;
-    case 'eblekar':
-      return 450;
-    case 'sporomet':
-    default:
-      return 400;
-  }
+  return type === 'sporovaya_bashnya' ? 500 : 400;
 }
 
 function getProjectileColor(type: Projectile['type']): string {
-  switch (type) {
-    case 'sporomet':
-      return '#4caf50';
-    case 'sporovaya_bashnya':
-      return '#f1c40f';
-    case 'eblekar':
-      return '#2196f3';
-    default:
-      return '#ffffff';
-  }
+  return type === 'sporomet' ? '#4caf50' : '#f1c40f';
 }
 
-/**
- * Рисует тонкую серую сетку 100×100
- */
-function drawGrid(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  cellW: number,
-  cellH: number,
-  rows: number,
-  cols: number
-) {
-  ctx.beginPath();
-  ctx.strokeStyle = '#cccccc';
-  ctx.lineWidth = 0.5;
-  for (let x = 0; x <= cols; x++) {
-    const px = x * cellW;
-    ctx.moveTo(px, 0);
-    ctx.lineTo(px, height);
-  }
-  for (let y = 0; y <= rows; y++) {
-    const py = y * cellH;
-    ctx.moveTo(0, py);
-    ctx.lineTo(width, py);
-  }
+function drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number, cw: number, ch: number, rows: number, cols: number) {
+  ctx.beginPath(); ctx.strokeStyle = 'rgba(204, 204, 204, 0.5)'; ctx.lineWidth = 0.5;
+  for (let x = 0; x <= cols; x++) { ctx.moveTo(x * cw, 0); ctx.lineTo(x * cw, h); }
+  for (let y = 0; y <= rows; y++) { ctx.moveTo(0, y * ch); ctx.lineTo(w, y * ch); }
   ctx.stroke();
 }
 
-function drawPlaceholder(ctx: CanvasRenderingContext2D, width: number, height: number) {
-  const rows = 100;
-  const cols = 100;
-  const cellW = width / cols;
-  const cellH = cellW;
-  for (let y = 0; y < rows; y++) {
-    for (let x = 0; x < cols; x++) {
-      ctx.fillStyle = getTerrainColor(0);
-      ctx.fillRect(x * cellW, y * cellH, cellW, cellH);
-    }
-  }
-  drawGrid(ctx, width, height, cellW, cellH, rows, cols);
+function drawPlaceholder(ctx: CanvasRenderingContext2D, w: number, h: number) {
+  ctx.fillStyle = '#2ecc71'; ctx.fillRect(0, 0, w, h);
 }
