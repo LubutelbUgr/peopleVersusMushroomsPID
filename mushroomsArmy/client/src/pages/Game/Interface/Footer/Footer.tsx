@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useState } from 'react';
 import { MediatorContext } from '../../../../App';
 import CONFIG from '../../../../config';
 import { GameState } from '../../types';
+import Minimap, { MinimapDot } from '../Minimap/Minimap';
 import './Footer.css';
 
 type FooterResource = {
@@ -26,7 +27,7 @@ const getFooterResources = (state: GameState | null): FooterResource[] => {
       value: aliveUnits.filter((unit) => unit.type === 'champigneb').length,
     },
     {
-      label: 'Эблекарей',
+      label: 'Еблекарей',
       value: aliveUnits.filter((unit) => unit.type === 'eblekar').length,
     },
     {
@@ -40,9 +41,42 @@ const getFooterResources = (state: GameState | null): FooterResource[] => {
   ];
 };
 
+const getMinimapDots = (state: GameState | null): MinimapDot[] => {
+  if (!state) return [];
+
+  const worldHeight = state.map.length || 1;
+  const worldWidth = state.map[0]?.length || 1;
+  const ownBuildingTypes = ['vzryvomor', 'sporovaya_bashnya'];
+  const clampPercent = (value: number) => Math.max(0, Math.min(100, value));
+  const toMinimapX = (x: number) => clampPercent((x / worldWidth) * 100);
+  const toMinimapY = (y: number) => clampPercent((y / worldHeight) * 100);
+
+  const unitDots = state.units
+    .filter((unit) => unit.hp > 0)
+    .map((unit) => ({
+      color: '#42d96b',
+      guid: unit.guid,
+      x: toMinimapX(unit.x + 0.5),
+      y: toMinimapY(unit.y + 0.5),
+    }));
+
+  const buildingDots = state.buildings
+    .filter((building) => building.hp > 0 && building.isAlive !== false)
+    .map((building) => ({
+      color: ownBuildingTypes.includes(building.type) ? '#ffd966' : '#f05252',
+      guid: building.guid,
+      x: toMinimapX(building.x + (building.sizeX ?? 1) / 2),
+      y: toMinimapY(building.y + (building.sizeY ?? 1) / 2),
+    }));
+
+  return [...unitDots, ...buildingDots];
+};
+
 const Footer: React.FC = () => {
   const mediator = useContext(MediatorContext);
   const [resources, setResources] = useState<FooterResource[]>(getFooterResources(null));
+  const [minimapDots, setMinimapDots] = useState<MinimapDot[]>([]);
+  const [minimapMap, setMinimapMap] = useState<GameState['map']>([]);
 
   useEffect(() => {
     if (!mediator) return;
@@ -50,6 +84,8 @@ const Footer: React.FC = () => {
     const EVENT_NAME = CONFIG.MEDIATOR.EVENTS.GAME_STATE_UPDATED;
     const handler = (newState: GameState) => {
       setResources(getFooterResources(newState));
+      setMinimapDots(getMinimapDots(newState));
+      setMinimapMap(newState.map);
     };
 
     mediator.subscribe(EVENT_NAME, handler);
@@ -61,11 +97,7 @@ const Footer: React.FC = () => {
 
   return (
     <footer className="game-footer-wrapper">
-      <div className="game-minimap">
-        <div className="minimap-info">это мы сейчас, он бегает</div>
-        <div className="minimap-player" />
-        <div className="minimap-title">мини карта</div>
-      </div>
+      <Minimap dots={minimapDots} map={minimapMap} />
 
       <div className="game-footer-main-panel">
         <div className="game-economy-resources">

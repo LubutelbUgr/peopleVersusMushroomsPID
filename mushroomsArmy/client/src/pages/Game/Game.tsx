@@ -7,6 +7,7 @@ import { GameState } from './types';
 import { PAGES } from '../PageManager';
 import { TUser } from '../../services/server/types';
 import Footer from './Interface/Footer/Footer';
+import Menu from './Interface/Menu/Menu';
 import './Game.css';
 
 const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
@@ -122,6 +123,7 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
         <button type="button" className="game-exit" onClick={handleExitToLobby}>
           Выход в лобби
         </button>
+        <Menu onExit={handleExitToLobby} />
       </header>
 
       <div className="game-canvas-wrapper">
