@@ -1,65 +1,10 @@
-/* Общий стиль для всего меню */
-.menu-container {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  padding: 30px;
-  background: #3b2a20; /* Цвет как у футера */
-  border: 2px solid #7a5237; /* Бордер как у миникарты */
-  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-  box-sizing: border-box;
-}
-
-/* Заголовки (используем стиль game-stat-label / game-economy-resources-title) */
-.menu-container h1, 
-.menu-container h2,
-.menu-title {
-  color: #d8c7a7;
-  font-size: 14px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  margin: 0;
-  text-align: center;
-}
-
-/* Кнопки меню (полная копия game-footer-button) */
-.menu-container button,
-.menu-button {
-  min-width: 140px;
-  height: 50px;
-  background: #7a5237;
-  border: 1px solid #966642;
-  color: #ffffff;
-  font-size: 16px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* Эффект при наведении на кнопку */
-.menu-container button:hover,
-.menu-button:hover {
-  background: #966642;
-  filter: brightness(1.1);
-}
-
-/* Если в меню есть значения или цифры (стиль game-stat-value) */
-.menu-value {
-  color: #ffd966;
-  font-size: 20px;
-  font-weight: 800;
-  text-align: center;
-}
-
-/* Если есть описания или текстовые пункты (стиль game-stat-label) */
-.menu-label {
-  color: #d8c7a7;
-  font-size: 14px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
+.menu-dropdown {
+  position: fixed;
+  top: 7vh; /* чуть ниже хедера */
+  right: 0px; /* в правом верхнем углу */
+  width: 200px;
+  height: 300px;
+  background: #3b2a20; /* заливка */
+  border: 2px solid #7a5237;
+  z-index: 50; /* за хедером (100), перед картой (0) */
 }

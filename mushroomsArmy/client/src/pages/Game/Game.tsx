@@ -115,9 +115,8 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
   <div className="game-page">
     {/* Хедер закреплен сверху (position: fixed в CSS) */}
     <Header 
-      username={username} 
-      aliveUnitsCount={aliveUnitsCount} 
-      onExit={handleExitToLobby} 
+    username={username} 
+    onExit={handleExitToLobby} 
     />
 
     {/* Основная игровая область */}

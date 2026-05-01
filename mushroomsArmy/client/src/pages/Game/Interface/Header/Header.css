@@ -1,52 +1,77 @@
 .game-header {
-  /* Позиционирование аналогично футеру */
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
-  z-index: 100; /* Чтобы быть поверх карты, как и футер */
-
-  /* Твои параметры размера и визуала */
-  height: 7vh; 
+  z-index: 100;
+  height: 6.5vh; 
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 0 20px;
-  background-color: #3b2a20;;
+  background-color: #3b2a20;
   border-bottom: 2px solid #7a5237;
   box-sizing: border-box;
   border-radius: 0;
 }
 
-/* Контейнер заголовка ставим строго по центру */
 .header-center {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  pointer-events: none; /* Чтобы заголовок не мешал кликам, если он перекроет что-то */
+  pointer-events: none; /* Чтобы текст не перехватывал клики */
 }
 
-/* Обязательно добавь это, если не добавил ранее */
-body {
-  margin: 0;
-  padding: 0;
-}
-
-.user-nickname {
-  font-weight: bold;
+/* Названия и никнеймы: добавляем цвет, чтобы их было видно на темном фоне */
+.user-nickname, .units-info, .game-title {
+  color: #d8c7a7; 
   font-family: sans-serif;
 }
 
 .game-title {
   margin: 0;
+  color: #d8c7a7;   
   font-size: 1.2rem;
   text-transform: uppercase;
 }
 
-.menu-button {
+/* Убираем лишние отступы у body, если они еще остались */
+body {
+  margin: 0;
+  padding: 0;
+}
+
+
+#header-menu-btn {
+  appearance: none;
   cursor: pointer;
-  padding: 5px 15px;
-  background: #ff0000;
-  border: 1px solid #ff0000;
-  z-index: 100;
+
+
+  width: 120px;   /* Фиксированная ширина */
+  height: 40px;    /* Фиксированная высота */
+
+
+  background: #7a5237;
+  border: 1px solid #966642;
+  color: #d8c7a7; ;
+  font-weight: bold;
+
+
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-transform: uppercase;
+  /* padding: 0 20px 0 20px; */
+}
+
+#header-menu-btn:hover {
+  background: #a06717;
+}
+
+/* Чтобы меню выпадало правильно относительно правой части хедера */
+.header-right {
+  position: relative;
+  display: flex;
+  align-items: center;
 }
