@@ -17,7 +17,7 @@ const Header: React.FC<HeaderProps> = ({ username, onExit }) => {
       </div>
       
       <div className="header-center">
-        <h1 className="game-title">😭Армия грибов🍄‍🟫</h1>
+        <h1 className="game-title">Армия грибов</h1>
       </div>
       
       <div className="header-right">

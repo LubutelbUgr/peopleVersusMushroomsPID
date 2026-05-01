@@ -1,5 +1,5 @@
 // pages/Game/Game.tsx
-import React, { useEffect, useRef, useState, useContext, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useContext } from 'react';
 import { MediatorContext, ServerContext } from '../../App';
 import CONFIG from '../../config';
 import { drawGame } from './renderer';
@@ -7,78 +7,38 @@ import { GameState } from './types';
 import { PAGES } from '../PageManager';
 import { TUser } from '../../services/server/types';
 import Footer from './Interface/Footer/Footer';
-import Header from './Interface/Header/Header';
+import Menu from './Interface/Menu/Menu';
 import './Game.css';
+import Header from './Interface/Header/Header';
 
 const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const gameStateRef = useRef<GameState | null>(null);
   const mediator = useContext(MediatorContext);
   const server = useContext(ServerContext);
-  
   const [isGameOver, setIsGameOver] = useState(false);
-  const [aliveUnitsCount, setAliveUnitsCount] = useState(0);  
+  const [aliveUnitsCount, setAliveUnitsCount] = useState(0);
 
-  // 1. Состояние камеры
-  const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 1.0 });
-  
-  const TILE_SIZE = 64; 
-  const MAP_WIDTH_TILES = 15; 
-  const MAP_HEIGHT_TILES = 10;
-  
-  const MIN_ZOOM = 0.4; 
-  const MAX_ZOOM = 5.0; 
-
-  // 2. Функция удержания камеры в границах
-  const clampCamera = useCallback((x: number, y: number, zoom: number) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x, y };
-
-    const mapWidthPx = MAP_WIDTH_TILES * TILE_SIZE * zoom;
-    const mapHeightPx = MAP_HEIGHT_TILES * TILE_SIZE * zoom;
-    const viewWidth = canvas.clientWidth;
-    const viewHeight = canvas.clientHeight;
-
-    let newX = x;
-    let newY = y;
-
-    if (mapWidthPx > viewWidth) {
-      newX = Math.min(0, Math.max(newX, viewWidth - mapWidthPx));
-    } else {
-      newX = (viewWidth - mapWidthPx) / 2; 
-    }
-
-    if (mapHeightPx > viewHeight) {
-      newY = Math.min(0, Math.max(newY, viewHeight - mapHeightPx));
-    } else {
-      newY = (viewHeight - mapHeightPx) / 2;
-    }
-
-    return { x: newX, y: newY };
-  }, []);
-
-  const GET_STORE = mediator?.getTriggerTypes().GET_STORE;
-  const user = mediator?.get(GET_STORE, 'user') as TUser | null;
+  const GET_STORE = mediator.getTriggerTypes().GET_STORE;
+  const user = mediator.get(GET_STORE, 'user') as TUser | null;
   const username = user?.name || 'Игрок';
 
-  // 3. Основная функция отрисовки
-  const redrawCanvas = useCallback(() => {
+  const redrawCanvas = () => {
     const canvas = canvasRef.current;
-    if (!canvas || !gameStateRef.current) return;
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     const widthCSS = canvas.clientWidth;
     const heightCSS = canvas.clientHeight;
+    if (widthCSS === 0 || heightCSS === 0) return;
 
-    const aliveCount = gameStateRef.current.units.filter((unit) => unit.hp > 0).length;
+    const aliveCount = gameStateRef.current?.units.filter((unit) => unit.hp > 0).length ?? 0;
     setAliveUnitsCount(aliveCount);
 
-    // Передаем камеру в рендерер
-    drawGame(ctx, gameStateRef.current, widthCSS, heightCSS, camera);
-  }, [camera]);
+    //drawGame(ctx, gameStateRef.current, widthCSS, heightCSS);
+  };
 
-  // Ресайз
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -100,64 +60,38 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
     };
 
     resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-    return () => window.removeEventListener('resize', resizeCanvas);
-  }, [redrawCanvas]);
 
-  // 4. Управление (Колесико + WASD)
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const handleWheel = (e: WheelEvent) => {
-      e.preventDefault(); 
-      setCamera((prev) => {
-        const zoomSpeed = 0.001; 
-        const delta = -e.deltaY * zoomSpeed;
-        const newZoom = Math.min(Math.max(prev.zoom + delta, MIN_ZOOM), MAX_ZOOM);
-        const { x, y } = clampCamera(prev.x, prev.y, newZoom);
-        return { x, y, zoom: newZoom };
+    let rafId: number | null = null;
+    const handleResize = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        resizeCanvas();
+        rafId = null;
       });
     };
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const moveSpeed = 30;
-      setCamera((prev) => {
-        let dx = 0;
-        let dy = 0;
-
-        if (e.code === 'KeyW' || e.code === 'ArrowUp') dy = moveSpeed;
-        if (e.code === 'KeyS' || e.code === 'ArrowDown') dy = -moveSpeed;
-        if (e.code === 'KeyA' || e.code === 'ArrowLeft') dx = moveSpeed;
-        if (e.code === 'KeyD' || e.code === 'ArrowRight') dx = -moveSpeed;
-
-        if (dx === 0 && dy === 0) return prev;
-
-        const { x, y } = clampCamera(prev.x + dx, prev.y + dy, prev.zoom);
-        return { ...prev, x, y };
-      });
-    };
-
-    canvas.addEventListener('wheel', handleWheel, { passive: false });
-    window.addEventListener('keydown', handleKeyDown);
-
+    window.addEventListener('resize', handleResize);
     return () => {
-      canvas.removeEventListener('wheel', handleWheel);
-      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('resize', handleResize);
+      if (rafId) cancelAnimationFrame(rafId);
     };
-  }, [clampCamera]);
+  }, []);
 
-  // 5. Подписки
   useEffect(() => {
     if (!mediator) return;
+
     const EVENT_NAME = CONFIG.MEDIATOR.EVENTS.GAME_STATE_UPDATED;
     const handler = (newState: GameState) => {
       gameStateRef.current = newState;
       redrawCanvas();
     };
+
     mediator.subscribe(EVENT_NAME, handler);
-    return () => mediator.unsubscribe(EVENT_NAME, handler);
-  }, [mediator, redrawCanvas]);
+
+    return () => {
+      mediator.unsubscribe(EVENT_NAME, handler);
+    };
+  }, [mediator]);
 
   useEffect(() => {
     if (!mediator) return;
@@ -173,7 +107,7 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
   };
 
   const handleRestartGame = () => {
-    server?.lobbyStart();
+    server.lobbyStart();
     setIsGameOver(false);
   };
 
