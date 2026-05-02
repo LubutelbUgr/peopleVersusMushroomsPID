@@ -1,4 +1,3 @@
-// pages/Game/Game.tsx
 import React, { useEffect, useRef, useState, useContext } from 'react';
 import { MediatorContext, ServerContext } from '../../App';
 import CONFIG from '../../config';
@@ -6,10 +5,12 @@ import { drawGame } from './renderer';
 import { GameState } from './types';
 import { PAGES } from '../PageManager';
 import { TUser } from '../../services/server/types';
+
 import Footer from './Interface/Footer/Footer';
 import Menu from './Interface/Menu/Menu';
-import './Game.css';
 import Header from './Interface/Header/Header';
+
+import './Game.css';
 
 const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -17,7 +18,6 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
   const mediator = useContext(MediatorContext);
   const server = useContext(ServerContext);
   const [isGameOver, setIsGameOver] = useState(false);
-  const [aliveUnitsCount, setAliveUnitsCount] = useState(0);
 
   const GET_STORE = mediator.getTriggerTypes().GET_STORE;
   const user = mediator.get(GET_STORE, 'user') as TUser | null;
@@ -32,9 +32,6 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
     const widthCSS = canvas.clientWidth;
     const heightCSS = canvas.clientHeight;
     if (widthCSS === 0 || heightCSS === 0) return;
-
-    const aliveCount = gameStateRef.current?.units.filter((unit) => unit.hp > 0).length ?? 0;
-    setAliveUnitsCount(aliveCount);
 
     drawGame(ctx, gameStateRef.current, widthCSS, heightCSS);
   };
@@ -124,11 +121,8 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
       <canvas ref={canvasRef} className="game-canvas" />
     </div>
 
-    {/* ФУТЕР: Теперь он в коде, ошибка импорта исчезнет.
-        Он сам прилипнет к низу благодаря вашим стилям .game-footer-wrapper */}
     <Footer />
 
-    {/* Модальное окно окончания игры */}
     {isGameOver && (
       <div className="game-overlay">
         <div className="game-overlay-content">
@@ -147,5 +141,7 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
   </div>
   );
 };
+
+
 
 export default Game;
