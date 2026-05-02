@@ -1,9 +1,10 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { MediatorContext } from '../../../../App';
 import CONFIG from '../../../../config';
-import { GameState } from '../../types';
 import Minimap from '../Minimap/Minimap';
 import './Footer.css';
+import { GameState, TCamera } from '../../types';
+import { camera as globalCamera } from '../../../../utils/camera'
 
 type FooterResource = {
   label: string;
@@ -50,23 +51,41 @@ const Footer: React.FC = () => {
   const mediator = useContext(MediatorContext);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [resources, setResources] = useState<FooterResource[]>(getFooterResources(null));
+  
+  // Состояние для отрисовки (сюда будем копировать данные из globalCamera)
+  const [cameraState, setCameraState] = useState<TCamera>({ ...globalCamera });
 
   useEffect(() => {
+    // 1. Оставляем подписку на ресурсы и состояние игры[cite: 2]
     if (!mediator) return;
-
-    const EVENT_NAME = CONFIG.MEDIATOR.EVENTS.GAME_STATE_UPDATED;
     const handler = (newState: GameState) => {
       setGameState(newState);
       setResources(getFooterResources(newState));
     };
+    mediator.subscribe(CONFIG.MEDIATOR.EVENTS.GAME_STATE_UPDATED, handler);
 
-    mediator.subscribe(EVENT_NAME, handler);
-    return () => mediator.unsubscribe(EVENT_NAME, handler);
+    // 2. Добавляем цикл обновления для камеры
+    // Будем проверять изменения каждые 16мс (~60 кадров в секунду)
+    const interval = setInterval(() => {
+      setCameraState({
+        offsetX: globalCamera.offsetX,
+        offsetY: globalCamera.offsetY,
+        scale: globalCamera.scale,
+        isDragging: globalCamera.isDragging,
+        lastMouseX: globalCamera.lastMouseX,
+        lastMouseY: globalCamera.lastMouseY,
+      });
+    }, 16);
+
+    return () => {
+      mediator.unsubscribe(CONFIG.MEDIATOR.EVENTS.GAME_STATE_UPDATED, handler);
+      clearInterval(interval); // Важно очистить таймер
+    };
   }, [mediator]);
 
   return (
     <footer className="game-footer-wrapper">
-      <Minimap gameState={gameState} />
+      <Minimap gameState={gameState} camera={cameraState} />
 
       <div className="game-footer-main-panel">
         <div className="game-economy-resources">
