@@ -166,6 +166,14 @@ function getUnitImage(unit: Unit): HTMLImageElement | undefined {
 
 export function drawGame(ctx: CanvasRenderingContext2D, state: GameState | null, widthCSS: number, heightCSS: number) {
   const canvas = ctx.canvas;
+  
+  // Синхронизируем внутренний размер канваса с его реальным размером на экране
+  const rect = canvas.getBoundingClientRect();
+  if (canvas.width !== rect.width || canvas.height !== rect.height) {
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+  }
+
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   // Инициализация один раз

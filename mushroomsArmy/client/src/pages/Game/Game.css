@@ -25,6 +25,24 @@ body[data-game-ui-size="large"] {
 }
 /* ------------------------------- */
 
+.game-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh; /* Строго на всю высоту окна */
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* Чтобы страница не скроллилась */
+}
+.game-header {
+  height: var(--header-height);
+  flex-shrink: 0; /* Шапка не будет сжиматься */
+}
+
+.game-footer {
+  height: var(--footer-height);
+  flex-shrink: 0; /* Футер не будет сжиматься */
+}
+
 .game-title {
   margin: 0;
   font-size: 1.2rem;
@@ -75,11 +93,11 @@ body[data-game-ui-size="large"] {
 }
 
 .game-canvas-wrapper {
-    width: 100%;
-    height: 100%;
-    position: relative;
-    overflow: hidden;
-    background: #45a049;
+  flex-grow: 1;    /* Занимает ВСЁ пространство между хедером и футером */
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;   /* Важный хак для flex-боксов, чтобы вложенный канвас не растягивал родителя */
 }
 
 .game-canvas {
