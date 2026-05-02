@@ -5,13 +5,15 @@ const BMP = require("./entities/BMP");
 const { INTERVAL } = CONFIG.ARMY;
 
 class Army {
-    constructor({ map, buildings, common, callbacks = {}, guid, db }) {
+    constructor({ guids = {}, startPoint = null, map = null, buildings = [], mapGuid = null, common, callbacks = {}, guid, db }) {
+        this.guids = {};
+
+        Object.keys(guids).forEach(key => this.guids[key] = guids[key]);
+
         this.guid = guid;
+        this.mapGuid = mapGuid || this.guids.spectator;
         this.common = common;
         this.callbacks = callbacks;
-
-        this.map = map;
-
         this.units = []; // наши юниты
         this.towers = []; // наши здания
         this.buildings = buildings; // постройки на карте
@@ -21,8 +23,10 @@ class Army {
         this.unitTypes = {};
         db.getUnitTypes().then(types => { this.unitTypes = types; });
 
-        this.interval = setInterval(() => this.update(), INTERVAL); // интервал обновления игры
+        this._initMap(map);
+        this._initUnits(startPoint);
 
+        this.interval = setInterval(() => this.update(), INTERVAL); // интервал обновления игры
         this.updated = false;
     }
 
@@ -36,8 +40,28 @@ class Army {
     get() {
         return {
             units: this.units,
-            //...
         }
+    }
+
+    _initMap(map = null) {
+        if (Array.isArray(map)) {
+            this.map = map;
+            return;
+        }
+
+        this.map = Array.from({ length: 50 }, () => Array.from({ length: 50 }, () => null));
+    }
+
+    _initUnits(startPoint) {
+        // создать пехотинца
+        // создать бэху
+        this.callbacks.update(this.guid, this.get());
+    }
+
+    setVisibility({ units = [], buildings = [] } = {}) {
+        this.enemyUnits = Array.isArray(units) ? units : [];
+        this.enemyBuildings = Array.isArray(buildings) ? buildings : [];
+        this.updated = true;
     }
 
     /**

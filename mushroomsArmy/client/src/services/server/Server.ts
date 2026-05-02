@@ -54,9 +54,24 @@ class Server {
         this.socket.on(GAME_STARTED, (data) => this.handleGameStarted(data));
         this.socket.on(GAME_STATE, (data) => this.handleGameState(data));
         this.socket.on(GAME_OVER, (data) => this.handleGameOver(data));
+
+        // Автоматически логинимся при (пере)подключении если есть сохранённые credentials
+        this.socket.on('connect', () => this.autoRestore());
+    }
+
+    private autoRestore(): void {
+        const credentials = authStorage.getCredentials();
+        const { user } = authStorage.getAuth();
+        if (credentials && user) {
+            this.socket.emit(LOGIN, {
+                name: credentials.name,
+                passwordHash: credentials.passwordHash,
+            });
+        }
     }
 
     register(username: string, password: string, passwordRepeat: string): void {
+        authStorage.setCredentials(username, md5(password));
         this.socket.emit(REGISTRATION, {
             name: username,
             passwordHash: md5(password),
@@ -64,6 +79,7 @@ class Server {
     }
 
     login(username: string, password: string): void {
+        authStorage.setCredentials(username, md5(password));
         this.socket.emit(LOGIN, {
             name: username,
             passwordHash: md5(password),
@@ -178,11 +194,16 @@ class Server {
     }
 
     async getLobbies(): Promise<ILobby[]> {
+        const user = this.mediator.get<TUser | null>(
+            this.mediator.getTriggerTypes().GET_STORE,
+            'user'
+        );
         const response = await fetch(`${HOST}/getLobbies`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
-            }
+            },
+            body: JSON.stringify({ guid: user?.guid ?? '' })
         });
 
         if (!response.ok) {
@@ -248,7 +269,7 @@ class Server {
         this.mediator.call(this.mediator.getEventTypes().ERROR, response.error);
     }
 
-    private handleLobbyUpdated(response: TResponse<ILobby[]>): void {
+    private handleLobbyUpdated(response: TResponse<ILobby>): void {
         if (response?.result === 'ok' && response.data) {
             const LOBBY_UPDATED_EVENT = this.mediator.getEventTypes().LOBBY_UPDATED;
             this.mediator.call(LOBBY_UPDATED_EVENT, response.data);
@@ -315,6 +336,7 @@ class Server {
 
             authStorage.setAuth(response.data.token, response.data);
             this.mediator.call(USER_REGISTERED, response.data);
+            this.lobbyStart();
             return;
         }
 
@@ -333,6 +355,7 @@ class Server {
 
             authStorage.setAuth(response.data.token, response.data);
             this.mediator.call(LOGIN_EVENT, response.data);
+            this.lobbyStart();
         } else {
             this.mediator.call(this.mediator.getEventTypes().ERROR, response.error);
         }
@@ -347,12 +370,11 @@ class Server {
     }
 
     private handleLobbyStart(response: TResponse<boolean>) {
-        if (response?.result === 'ok' && response.data) {
-            const GAME_STARTED = this.mediator.getEventTypes().GAME_STARTED;
-            this.mediator.call(GAME_STARTED);
-        } else {
+        if (response?.result !== 'ok') {
             this.mediator.call(this.mediator.getEventTypes().ERROR, response.error);
         }
+        // socketId зарегистрирован на сервере — навигацию не делаем здесь,
+        // она произойдёт при получении 'game:started'
     }
 
     private handleGameStarted(response: TResponse<boolean>) {

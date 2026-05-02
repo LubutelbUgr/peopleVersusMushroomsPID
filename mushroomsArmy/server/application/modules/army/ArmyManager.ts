@@ -5,10 +5,14 @@ import { Socket } from 'socket.io';
 
 const GLOBAL_CONFIG = require('../../../../../global/globalConfig');
 
-const { GAME_STATE, GAME_OVER, LOBBY_START } = CONFIG.SOCKET;
+const { GAME_STATE, GAME_OVER, LOBBY_START, GAME_STARTED } = CONFIG.SOCKET;
 
-type TStartGame = { guid: string; map: TMap; buildings: TBuildingInput[]; mapGuid: string };
+type TStartGame = { guid: string; map?: TMap; buildings: TBuildingInput[]; mapGuid: string };
 type TTakeDamage = { armyGuid: string; unitGuid: string; amount: number; type: string };
+type TMoveUnit = { armyGuid: string; unitGuid: string; x: number; y: number };
+type TGetArmy = string;
+type TSpawnUnit = { armyGuid: string; type: 'sporomet' | 'champigneb' | 'eblekar'; x: number; y: number };
+type TSpawnBuildingUnit = { armyGuid: string; type: 'vzryvomor' | 'sporovaya_bashnya'; x: number; y: number };
 type TUser = { guid: string; token: string; socketId: string; name: string };
 
 type TVisibleEntity = {
@@ -21,8 +25,11 @@ type TVisibleEntity = {
 };
 
 type TVisibilityResponse = {
-    entities: TVisibleEntity[];
+    units: TVisibleEntity[];
+    buildings: TVisibleEntity[];
 };
+
+type TReliefResponse = TMap;
 
 class ArmyManager extends BaseManager {
     private army: { [guid: string]: Army };
@@ -39,6 +46,22 @@ class ArmyManager extends BaseManager {
         );
 
         this.mediator.set(CONFIG.MEDIATOR.TRIGGERS.DESTROY_ARMY, (data: unknown) => this.destroyArmy(data as string));
+
+        this.mediator.set(CONFIG.MEDIATOR.TRIGGERS.MOVE_UNIT, (data: unknown) =>
+            this.triggerMoveUnit(data as TMoveUnit)
+        );
+
+        this.mediator.set(CONFIG.MEDIATOR.TRIGGERS.GET_ARMY, (data: unknown) =>
+            this.triggerGetArmy(data as TGetArmy)
+        );
+
+        this.mediator.set(CONFIG.MEDIATOR.TRIGGERS.SPAWN_UNIT, (data: unknown) =>
+            this.triggerSpawnUnit(data as TSpawnUnit)
+        );
+
+        this.mediator.set(CONFIG.MEDIATOR.TRIGGERS.SPAWN_BUILDING, (data: unknown) => 
+            this.triggerSpawnBuildingUnit(data as TSpawnBuildingUnit)
+        );
 
         if (!this.io) return;
         this.io.on('connection', (socket: Socket) => {
@@ -73,6 +96,40 @@ class ArmyManager extends BaseManager {
         return false;
     }
 
+    private triggerMoveUnit({ armyGuid, unitGuid, x, y }: TMoveUnit): boolean {
+        const army = this.army[armyGuid];
+        if (!army) return false;
+
+        const unit = army.units.find(u => u.guid === unitGuid);
+        if (!unit) return false;
+
+        (unit as any).targetX = x;
+        (unit as any).targetY = y;
+
+        return true;
+    }
+
+    private triggerGetArmy(armyGuid: TGetArmy): TArmyState | null {
+        const army = this.army[armyGuid];
+        if (!army) return null;
+
+        return army.getState();
+    }
+
+    private triggerSpawnUnit({ armyGuid, type, x, y }: TSpawnUnit): { guid: string } | null {
+        const army = this.army[armyGuid];
+        if (!army) return null;
+
+        return army.spawnUnit(type, x, y, this.common);
+    }
+
+    private triggerSpawnBuildingUnit({ armyGuid, type, x, y }: TSpawnBuildingUnit): { guid: string } | null {
+        const army = this.army[armyGuid];
+        if (!army) return null;
+
+        return army.spawnBuilding(type, x, y, this.common);
+    }
+
     private async updateArmyCallback(guid: string, armyState: TArmyState) {
         const user = this.mediator.get(this.TRIGGERS.GET_USER_BY_GUID, guid) as { socketId: string } | null;
         if (!user) return;
@@ -94,23 +151,30 @@ class ArmyManager extends BaseManager {
 
         const { units, buildings } = armyState;
 
-        // Отправляем юниты и здания на отдельные эндпоинты карты
+        // Отправляем юниты и здания на карту
+        // карта читает поля units / buildings (см. useUpdateUnitsHandler.js / useUpdateBuildingsHandler.js)
         await this.send<{ mapGuid: string; userGuid: string; units: TArmyState['units'] }>(
-            `${GLOBAL_CONFIG.MAP.URL}/updateUnitsHandler`,
+            `${GLOBAL_CONFIG.MAP.URL}${GLOBAL_CONFIG.URLS.UPDATE_UNITS}`,
             { mapGuid: army.mapGuid, userGuid: army.guid, units }
         );
 
         await this.send<{ mapGuid: string; userGuid: string; buildings: TArmyState['buildings'] }>(
-            `${GLOBAL_CONFIG.MAP.URL}/updateBuildingsHandler`,
+            `${GLOBAL_CONFIG.MAP.URL}${GLOBAL_CONFIG.URLS.UPDATE_BUILDINGS}`,
             { mapGuid: army.mapGuid, userGuid: army.guid, buildings }
         );
 
-        const visibility = await this.sendToMap<null, TVisibilityResponse>(
-            '/getVisibility', army.mapGuid, army.guid
+        // карта возвращает { units, buildings } (см. Map.getVisbileEntitiesByRole)
+        const visibility = await this.sendToMap<TVisibilityResponse>(
+            GLOBAL_CONFIG.URLS.GET_VISIBILITY, army.mapGuid, army.guid
         );
 
-        if (visibility?.entities && visibility.entities.length > 0) {
-            const enemyEntities: TBuildingInput[] = visibility.entities.map(entity => ({
+        const visibleEnemies: TVisibleEntity[] = [
+            ...(visibility?.units ?? []),
+            ...(visibility?.buildings ?? []),
+        ];
+
+        if (visibleEnemies.length > 0) {
+            const enemyEntities: TBuildingInput[] = visibleEnemies.map(entity => ({
                 guid: entity.guid,
                 type: entity.type,
                 x: entity.x,
@@ -130,17 +194,31 @@ class ArmyManager extends BaseManager {
         delete this.army[guid];
     }
 
-    private eventStartGame({ guid, map, buildings, mapGuid }: TStartGame): void {
+     private async eventStartGame({ guid, map, buildings, mapGuid }: TStartGame): Promise<void> {
         const user = this.mediator.get(this.TRIGGERS.GET_USER_BY_GUID, guid);
         if (!user) return;
 
         if (this.army[guid]) {
             this.destroyArmy(guid);
         }
+        let resolvedMap = map;
+
+        if (!resolvedMap) {
+            const relief = await this.send<{ mapGuid: string; userGuid: string }, TReliefResponse>(
+                `${GLOBAL_CONFIG.MAP.URL}${GLOBAL_CONFIG.URLS.GET_RELIEF}`,
+                { mapGuid, userGuid: guid }
+            );
+
+            if (!relief || !Array.isArray(relief)) {
+                return;
+            }
+
+            resolvedMap = relief;
+        }
 
         this.army[guid] = new Army({
             mapGuid,
-            map,
+            map: resolvedMap,
             buildings,
             common: this.common,
             guid,
@@ -148,6 +226,11 @@ class ArmyManager extends BaseManager {
                 update: (guid: string, armyState: TArmyState) => this.updateArmyCallback(guid, armyState)
             }
         });
+
+        const userObj = this.mediator.get(this.TRIGGERS.GET_USER_BY_GUID, guid) as TUser | null;
+        if (userObj?.socketId) {
+            this.io.to(userObj.socketId).emit(GAME_STARTED, this.answer.good(true));
+        }
     }
 
     private socketLobbyStart({ guid, token }: { guid?: string; token?: string }, socket: Socket): void {
@@ -163,26 +246,7 @@ class ArmyManager extends BaseManager {
         }
 
         user.socketId = socket.id;
-
-        const map: (number | null)[][] = Array.from({ length: 100 }, () =>
-            Array.from({ length: 100 }, (_, col) => (col === 10 ? 1 : 0))
-        );
-
-        const buildings: TBuildingInput[] = [
-            { guid: this.common.guid(), type: 'house', x: 50, y: 30, hp: 200, maxHp: 200 },
-            { guid: this.common.guid(), type: 'barracks', x: 60, y: 50, hp: 300, maxHp: 300 },
-            { guid: this.common.guid(), type: 'tower', x: 56, y: 70, hp: 150, maxHp: 150 },
-            { guid: this.common.guid(), type: 'sporovaya_bashnya', x: 40, y: 20, hp: 500, maxHp: 500, sizeX: 2, sizeY: 2 },
-            { guid: this.common.guid(), type: 'sporovaya_bashnya', x: 40, y: 60, hp: 500, maxHp: 500, sizeX: 2, sizeY: 2 },
-            { guid: this.common.guid(), type: 'vzryvomor', x: 80, y: 20, hp: 70, maxHp: 70, attackRange: 7 },
-            { guid: this.common.guid(), type: 'vzryvomor', x: 60, y: 60, hp: 70, maxHp: 70, attackRange: 7 },
-            { guid: this.common.guid(), type: 'vzryvomor', x: 40, y: 80, hp: 70, maxHp: 70, attackRange: 7 },
-        ];
-
-        const mapGuid = this.common.guid();
-
         socket.emit(LOBBY_START, this.answer.good(true));
-        this.mediator.call(this.EVENTS.START_GAME, { guid, map, buildings, mapGuid });
     }
 }
 
