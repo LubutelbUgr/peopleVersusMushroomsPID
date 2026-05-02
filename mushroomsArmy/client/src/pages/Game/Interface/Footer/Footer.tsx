@@ -1,9 +1,10 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { MediatorContext } from '../../../../App';
 import CONFIG from '../../../../config';
-import { GameState } from '../../types';
 import Minimap from '../Minimap/Minimap';
 import './Footer.css';
+import { GameState, TCamera } from '../../types';
+import { camera as globalCamera } from '../../../../utils/camera'
 
 type FooterResource = {
   label: string;
@@ -51,24 +52,48 @@ const Footer: React.FC = () => {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [resources, setResources] = useState<FooterResource[]>(getFooterResources(null));
 
-  useEffect(() => {
-    if (!mediator) return;
+  // Состояние для отрисовки (сюда будем копировать данные из globalCamera)
+  const [cameraState, setCameraState] = useState<TCamera>({ ...globalCamera });
 
-    const EVENT_NAME = CONFIG.MEDIATOR.EVENTS.GAME_STATE_UPDATED;
+  useEffect(() => {
+    // 1. Оставляем подписку на ресурсы и состояние игры[cite: 2]
+    if (!mediator) return;
     const handler = (newState: GameState) => {
       setGameState(newState);
       setResources(getFooterResources(newState));
     };
+    mediator.subscribe(CONFIG.MEDIATOR.EVENTS.GAME_STATE_UPDATED, handler);
 
-    mediator.subscribe(EVENT_NAME, handler);
-    return () => mediator.unsubscribe(EVENT_NAME, handler);
+    // 2. Добавляем цикл обновления для камеры
+    // Будем проверять изменения каждые 16мс (~60 кадров в секунду)
+    const interval = setInterval(() => {
+      setCameraState({
+        offsetX: globalCamera.offsetX,
+        offsetY: globalCamera.offsetY,
+        scale: globalCamera.scale,
+        isDragging: globalCamera.isDragging,
+        lastMouseX: globalCamera.lastMouseX,
+        lastMouseY: globalCamera.lastMouseY,
+      });
+    }, 16);
+
+    return () => {
+      mediator.unsubscribe(CONFIG.MEDIATOR.EVENTS.GAME_STATE_UPDATED, handler);
+      clearInterval(interval); // Важно очистить таймер
+    };
   }, [mediator]);
 
   return (
     <footer className="game-footer-wrapper">
-      <Minimap gameState={gameState} />
+      {/* Контейнер для карты, зафиксированный слева */}
+      <div className="minimap-container">
+        <Minimap gameState={gameState} camera={cameraState} />
+      </div>
 
+      {/* Основная деревянная панель */}
       <div className="game-footer-main-panel">
+
+        {/* Подложка ресурсов */}
         <div className="game-economy-resources">
           <span className="game-economy-resources-title">Ресурсы</span>
           <div className="game-economy-resources-list">
@@ -81,14 +106,18 @@ const Footer: React.FC = () => {
           </div>
         </div>
 
-        <div className="game-footer-stats">
-          {resources.map((resource) => (
-            <div className="game-stat-item" key={resource.label}>
-              <span className="game-stat-label">{resource.label}</span>
-              <span className="game-stat-value">{resource.value}</span>
-            </div>
-          ))}
+        {/* Подложка статистики юнитов */}
+        <div className="game-footer-stats-container">
+          <div className="game-footer-stats">
+            {resources.map((resource) => (
+              <div className="game-stat-item" key={resource.label}>
+                <span className="game-stat-label">{resource.label}</span>
+                <span className="game-stat-value">{resource.value}</span>
+              </div>
+            ))}
+          </div>
         </div>
+
       </div>
     </footer>
   );

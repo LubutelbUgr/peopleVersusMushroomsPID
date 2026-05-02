@@ -1,3 +1,19 @@
+/* Общий стиль для подложек ресурсов и статистики */
+.game-economy-resources,
+.game-footer-stats-container {
+  display: flex;
+  background-color: rgba(37, 24, 1, 0.578);
+  box-shadow:
+    inset 4px 4px 10px rgba(0, 0, 0, 0.8),
+    0 1px 0 rgba(255, 255, 255, 0.15);
+  border: 2px solid #2a1d15;
+  border-radius: 4px;
+  padding: calc(var(--font-base) * 0.7);
+
+  align-self: stretch;
+  box-sizing: border-box;
+}
+
 .game-footer-wrapper {
   position: fixed;
   bottom: 0;
@@ -12,42 +28,33 @@
 .game-footer-main-panel {
   flex: 1;
   height: var(--footer-height);
-  
-  /* 1. Указываем путь к маленькому файлу */
-  background-image: 
-  linear-gradient(rgba(25, 13, 1, 0.5), rgba(25, 13, 1, 0.5)),
-  url('../../../../assets/map/tree.webp'); 
-  
-  /* 2. Включаем цикличный повтор по обеим осям */
-  background-repeat: repeat; 
-  
-  
-  /* 3. Устанавливаем размер */
-  background-size: calc(var(--footer-height) * 2) calc(var(--footer-height) * 2);
   display: flex;
   align-items: center;
-  padding: 0 40px;
+  padding: 15px 40px;
+  gap: 20px;
+
+  background-image:
+    linear-gradient(rgba(25, 13, 1, 0.5), rgba(25, 13, 1, 0.5)),
+    url('../../../../assets/map/tree.webp');
+  background-repeat: repeat;
+  background-size: calc(var(--footer-height) * 2) calc(var(--footer-height) * 2);
   box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.5), 0 -4px 14px rgba(0, 0, 0, 0.35);
+  box-sizing: border-box;
 }
 
-.game-economy-resources {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 2px;
-  min-width: calc(var(--font-base) * 15); /* Тянется за шрифтом */
-  padding: calc(var(--font-base) * 0.7);
-  background-color: rgba(37, 24, 1, 0.578);
-  box-shadow: 
-    inset 4px 4px 10px rgba(0, 0, 0, 0.8), 
-    0 1px 0 rgba(255, 255, 255, 0.15);
+.game-footer-stats-container {
+  flex: 1;
+  margin-left: 0;
+  justify-content: space-around;
+  align-items: center;
+  min-width: 0;
+}
 
-  border-top: 2px solid #2a1d15;
-  border-left: 2px solid #2a1d15;
-  border-bottom: 2px solid #2a1d15;
-  border-right: 2px solid #2a1d15;
-  
-  border-radius: 4px; 
+.game-footer-stats {
+  display: flex;
+  width: 100%;
+  justify-content: space-around;
+  gap: 10px;
 }
 
 .game-economy-resources-title {
@@ -80,20 +87,21 @@
   margin-left: 8px;
 }
 
-.game-footer-stats {
-  display: flex;
-  flex: 1; 
-  justify-content: space-around; 
-  margin-left: 0; 
-  padding: 0 20px;
+.game-economy-resources {
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-width: calc(var(--font-base) * 15);
+  flex-shrink: 0;
+  /* Чтобы не сжимался меньше базы */
 }
 
 .game-stat-item {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  flex: 1; 
-  text-align: center; 
+  flex: 1;
+  text-align: center;
   min-width: 0;
 }
 
@@ -116,13 +124,15 @@
   font-size: 20px;
   font-weight: 500;
 }
+
 .minimap-container {
   width: var(--minimap-size);
   height: var(--minimap-size);
-  flex-shrink: 0; /* Чтобы основная панель не могла "сдавить" карту */
-  
+  flex-shrink: 0;
+  /* Чтобы основная панель не могла "сдавить" карту */
+
   /* Опционально: рамка и фон */
   background-color: #000;
-  border: 3px solid #7a5237; 
+  border: 3px solid #7a5237;
   box-sizing: border-box;
 }
