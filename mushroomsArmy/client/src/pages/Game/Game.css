@@ -25,16 +25,22 @@ body[data-game-ui-size="large"] {
 }
 /* ------------------------------- */
 
-
-
 .game-page {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  background-color: #2c2c2c;
-  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
-  padding: 16px;
-  box-sizing: border-box;
+  height: 100vh; /* Строго на всю высоту окна */
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* Чтобы страница не скроллилась */
+}
+.game-header {
+  height: var(--header-height);
+  flex-shrink: 0; /* Шапка не будет сжиматься */
+}
+
+.game-footer {
+  height: var(--footer-height);
+  flex-shrink: 0; /* Футер не будет сжиматься */
 }
 
 .game-title {
@@ -87,23 +93,17 @@ body[data-game-ui-size="large"] {
 }
 
 .game-canvas-wrapper {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 0;
+  flex-grow: 1;    /* Занимает ВСЁ пространство между хедером и футером */
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;   /* Важный хак для flex-боксов, чтобы вложенный канвас не растягивал родителя */
 }
 
 .game-canvas {
-  border: 2px solid #444;
-  border-radius: 8px;
-  background-color: #1a1a1a;
-  display: block;
-  width: 100%;
-  max-width: 900px;
-  height: auto;
-  aspect-ratio: 1 / 1;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    display: block;
+    width: 100%;
+    height: 100%;
 }
 
 .game-overlay {
@@ -112,7 +112,6 @@ body[data-game-ui-size="large"] {
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.8);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -121,7 +120,7 @@ body[data-game-ui-size="large"] {
 }
 
 .game-overlay-content {
-  background: #2c2c2c;
+  background: #2a1d15;
   padding: 32px 48px;
   border-radius: 24px;
   text-align: center;

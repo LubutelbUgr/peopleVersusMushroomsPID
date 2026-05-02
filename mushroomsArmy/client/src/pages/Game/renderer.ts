@@ -166,6 +166,14 @@ function getUnitImage(unit: Unit): HTMLImageElement | undefined {
 
 export function drawGame(ctx: CanvasRenderingContext2D, state: GameState | null, widthCSS: number, heightCSS: number) {
   const canvas = ctx.canvas;
+  
+  // Синхронизируем внутренний размер канваса с его реальным размером на экране
+  const rect = canvas.getBoundingClientRect();
+  if (canvas.width !== rect.width || canvas.height !== rect.height) {
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+  }
+
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   // Инициализация один раз
@@ -179,12 +187,38 @@ export function drawGame(ctx: CanvasRenderingContext2D, state: GameState | null,
   const rows = state.map.length;
   const cols = state.map[0]?.length ?? 0;
 
-  const cellW = (cols > 0 ? canvas.width / cols : canvas.width) * camera.scale;
+  const cellW = (canvas.width / cols) * camera.scale;
   const cellH = cellW;
 
+  if (camera.scale <= 1.001) { // 1.001 для компенсации погрешности float
+    camera.offsetX = 0;
+  }
+
+  // 2. Считаем полный размер карты в пикселях
+  const mapFullWidth = cols * cellW;
+  const mapFullHeight = rows * cellH;
+
+  // 3. ПЕРЕД ВСЕМ рисуем бесконечный фон (траву)
+  ctx.fillStyle = '#45a049'; // Тот же зеленый, что на карте
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // 4. Центрируем карту по умолчанию, если смещение еще не задано
+  // Это уберет те самые пустые полосы по бокам
+  if (camera.offsetX === 0 && camera.offsetY === 0) {
+    camera.offsetX = (canvas.width - mapFullWidth) / 2;
+    camera.offsetY = (canvas.height - mapFullHeight) / 2;
+  }
+
   ctx.save();
-  // Применяем трансформацию камеры
   ctx.translate(camera.offsetX, camera.offsetY);
+
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      ctx.fillRect(x * cellW, y * cellH, cellW, cellH);
+    }
+  }
+
+  ctx.restore();
 
   // --- НАЧАЛО ОТРИСОВКИ ОБЪЕКТОВ ---
 

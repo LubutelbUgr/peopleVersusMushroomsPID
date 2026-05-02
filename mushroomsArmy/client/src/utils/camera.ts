@@ -7,5 +7,8 @@ export const camera = {
   lastMouseY: 0,
 };
 
-export const MIN_SCALE = 0.1;
+camera.offsetX = window.innerWidth / 2 - (50 * 50) / 2;
+camera.offsetY = window.innerHeight / 2 - (50 * 50) / 2;
+
+export const MIN_SCALE = 0.8;
 export const MAX_SCALE = 15.0;
