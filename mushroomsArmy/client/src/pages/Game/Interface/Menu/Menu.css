@@ -47,11 +47,10 @@
   margin-bottom: 15px;
 }
 
-/* Используем селектор от body, чтобы гарантированно перебить Game.css */
+
 body[data-game-ui-size] .menu-btn.btn-exit-lobby {
   width: 140px; 
-  margin-top: 20px;
-  /* Убедимся, что она не растягивается флексом */
+  margin: 10px auto 0; 
   flex-shrink: 0; 
 }
 
@@ -62,13 +61,12 @@ body[data-game-ui-size] .menu-btn.btn-exit-lobby {
   transform: scale(1.05);
 }
 
-/* Состояние кнопки ВЫХОД при наведении */
+
 .btn-exit-lobby:hover {
   background-color: #8b2e2e !important; 
   
   border-color: #481a1a !important; 
   
-  /* Цвет текста оставляем светлым для контраста */
   color: #f0d8b4 !important; 
   
   transform: scale(1.02);

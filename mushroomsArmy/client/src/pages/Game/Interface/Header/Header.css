@@ -21,7 +21,7 @@
   position: absolute; 
   left: 50%;
   transform: translateX(-50%);
-  pointer-events: none; /* Чтобы текст не перехватывал клики */
+  pointer-events: none; 
 }
 
 /* Названия и никнеймы */
@@ -38,7 +38,6 @@
   text-transform: uppercase;
 }
 
-/*бираем лишние отступы у body*/
 body {
   margin: 0;
   padding: 0;
@@ -70,7 +69,6 @@ body {
   align-items: center;
   justify-content: center;
   text-transform: uppercase;
-  /* padding: 0 20px 0 20px; */
 }
 
 #header-menu-btn:hover {

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import './Menu.css';
 
-// Определяем типы для строгости
+
 type UISize = 'small' | 'medium' | 'large';
 
 interface MenuProps {
@@ -21,8 +21,6 @@ const Menu: React.FC<MenuProps> = ({ isOpen, onExit }) => {
   }, [uiSize]);
 
   if (!isOpen) return null;
-
-  /* В файле Menu.tsx измени возвращаемый JSX: */
 
 return (
   <div className="menu-dropdown">
@@ -45,10 +43,11 @@ return (
             onClick={() => setUiSize('large')}
           >БОЛЬШОЙ</button>
         </div>
-      </div>
 
-      {/* Кнопка выхода тоже получает этот класс */}
-      <button className="menu-btn btn-exit-lobby" onClick={onExit}>ВЫХОД</button>
+        {/* Кнопка выхода внутри секции */}
+        <button className="menu-btn btn-exit-lobby" onClick={onExit}>ВЫХОД</button>
+
+      </div>
     </div>
   </div>
 );

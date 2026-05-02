@@ -6,7 +6,7 @@ body[data-game-ui-size="small"] {
   --footer-height: 115px;         
   --minimap-size: 150px; 
   --font-base: 14px;
-  --menu-width: 230px;
+  --menu-width: 200px;
   --menu-gap: -13px; 
 }
 
@@ -16,7 +16,7 @@ body[data-game-ui-size="medium"] {
   --footer-height: 145px; 
   --minimap-size: 240px;
   --font-base: 14px;
-  --menu-width: 260px;
+  --menu-width: 230px;
   --menu-gap: -15px; 
 }
 
@@ -102,20 +102,16 @@ body[data-game-ui-size="small"] .menu-btn {
 }
 
 body[data-game-ui-size="medium"] .menu-btn {
-  height: 30px; /* Солидная высота для стандарта */
-  font-size: var((--font-base) * 0.9);
+  height: 25px; 
+  font-size: calc(var(--font-base) * 0.9);
 }
 
 body[data-game-ui-size="large"] .menu-btn {
-  height: 36px; /* Очень высокая кнопка для большого UI */
-  font-size: calc(var(--font-base) * 1.1);
+  height: 39px; 
+  font-size: calc(var(--font-base) * 0.9);
 }
 
-
-
-
-
-/* -- gameeover border span gameover -- */
+/* -- gameeover -- */
 .game-overlay {
   position: fixed; 
   top: 0;
@@ -126,23 +122,21 @@ body[data-game-ui-size="large"] .menu-btn {
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 9999; /* Максимальный приоритет, чтобы перекрыть хедер и футер */
+  z-index: 9999;
   backdrop-filter: blur(4px);
 }
 
 .game-overlay-content {
   background: #2c2c2c;
-  /* Адаптивный отступ: зависит от выбранного в меню размера */
   padding: calc(var(--font-base) * 2) calc(var(--font-base) * 3); 
   border-radius: 24px;
   text-align: center;
   color: white;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-  border: 2px solid #ffcc00; /* Чуть увеличил для четкости */
+  border: 2px solid #ffcc00; 
 }
 
 .game-overlay-content h2 {
-  /* Адаптивный заголовок */
   font-size: calc(var(--font-base) * 2.2); 
   margin-bottom: calc(var(--font-base) * 1.5);
   color: #ff6666;
@@ -161,7 +155,6 @@ body[data-game-ui-size="large"] .menu-btn {
   border: none;
   color: #1e1e2f;
   font-weight: bold;
-  /* Кнопки теперь тоже растут вместе с интерфейсом */
   font-size: var(--font-base);
   padding: calc(var(--font-base) * 0.6) calc(var(--font-base) * 1.5);
   border-radius: 40px;

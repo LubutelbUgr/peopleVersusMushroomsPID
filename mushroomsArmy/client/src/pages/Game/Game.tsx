@@ -7,7 +7,6 @@ import { PAGES } from '../PageManager';
 import { TUser } from '../../services/server/types';
 
 import Footer from './Interface/Footer/Footer';
-import Menu from './Interface/Menu/Menu';
 import Header from './Interface/Header/Header';
 
 import './Game.css';
@@ -110,13 +109,11 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
 
   return (
   <div className="game-page">
-    {/* Хедер закреплен сверху (position: fixed в CSS) */}
     <Header 
     username={username} 
     onExit={handleExitToLobby} 
     />
 
-    {/* Основная игровая область */}
     <div className="game-canvas-wrapper">
       <canvas ref={canvasRef} className="game-canvas" />
     </div>
