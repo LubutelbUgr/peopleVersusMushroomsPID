@@ -148,6 +148,45 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
     return () => mediator.unsubscribe(GAME_OVER_EVENT, handler);
   }, [mediator]);
 
+  useEffect(() => {
+    const UNIT_TYPES: Record<string, 'sporomet' | 'champigneb' | 'eblekar'> = {
+      Digit1: 'sporomet',
+      Digit2: 'champigneb',
+      Digit3: 'eblekar',
+    };
+
+    const handleSpawnKey = (e: KeyboardEvent) => {
+      const type = UNIT_TYPES[e.code];
+      if (!type) return;
+
+      const map = gameStateRef.current?.map;
+      if (!map || map.length === 0) return;
+
+      const rows = map.length;
+      const cols = map[0].length;
+      let spawnX = -1;
+      let spawnY = -1;
+
+      outer: for (let dy = 0; dy < rows; dy++) {
+        for (let dx = 0; dx < cols; dx++) {
+          const y = rows - 1 - dy;
+          const x = cols - 1 - dx;
+          if (map[y][x] === 0) {
+            spawnX = x;
+            spawnY = y;
+            break outer;
+          }
+        }
+      }
+
+      if (spawnX === -1) return;
+      server.spawnUnit(type, spawnX, spawnY);
+    };
+
+    window.addEventListener('keydown', handleSpawnKey);
+    return () => window.removeEventListener('keydown', handleSpawnKey);
+  }, [server]);
+
   const handleExitToLobby = () => {
     setIsGameOver(false);
     setPage(PAGES.LOBBY);

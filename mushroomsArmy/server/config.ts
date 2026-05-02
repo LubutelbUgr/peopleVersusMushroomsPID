@@ -24,6 +24,7 @@ interface Config {
         GAME_STARTED: string;
         GAME_STATE: string;
         GAME_OVER: string;
+        SPAWN_UNIT: string;
     };
 }
 
@@ -55,6 +56,7 @@ const CONFIG: Config = {
         GAME_STARTED: 'game:started',
         GAME_STATE: 'game:state',
         GAME_OVER: 'game:over',
+        SPAWN_UNIT: 'game:spawn_unit',
     },
 };
 

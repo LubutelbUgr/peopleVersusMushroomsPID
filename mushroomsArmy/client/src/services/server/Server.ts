@@ -193,6 +193,19 @@ class Server {
         });
     }
 
+    spawnUnit(type: 'sporomet' | 'champigneb' | 'eblekar', x: number, y: number): void {
+        const user = this.getAuthorizedUser();
+        if (!user) return;
+
+        this.socket.emit(CONFIG.SOCKET.SPAWN_UNIT, {
+            guid: user.guid,
+            token: user.token,
+            type,
+            x,
+            y,
+        });
+    }
+
     async getLobbies(): Promise<ILobby[]> {
         const user = this.mediator.get<TUser | null>(
             this.mediator.getTriggerTypes().GET_STORE,

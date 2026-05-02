@@ -49,6 +49,7 @@ const CONFIG = {
         GAME_STARTED: 'game:started',
         GAME_STATE: 'game:state',
         GAME_OVER: 'game:over',
+        SPAWN_UNIT: 'game:spawn_unit',
     }
 };
 

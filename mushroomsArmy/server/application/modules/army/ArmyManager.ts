@@ -66,6 +66,7 @@ class ArmyManager extends BaseManager {
         if (!this.io) return;
         this.io.on('connection', (socket: Socket) => {
             socket.on(LOBBY_START, (data: { guid?: string; token?: string }) => this.socketLobbyStart(data, socket));
+            socket.on(CONFIG.SOCKET.SPAWN_UNIT, (data: { guid?: string; token?: string; type?: string; x?: number; y?: number }) => this.socketSpawnUnit(data, socket));
         });
     }
 
@@ -143,11 +144,11 @@ class ArmyManager extends BaseManager {
             return;
         }
         
-        if (army && army.buildings.length === 0) {
-            this.io.to(user.socketId).emit(GAME_OVER, this.answer.good({ message: 'Все здания разрушены' }));
-            this.destroyArmy(guid);
-            return;
-        }
+        // if (army && army.buildings.length === 0) {
+        //     this.io.to(user.socketId).emit(GAME_OVER, this.answer.good({ message: 'Все здания разрушены' }));
+        //     this.destroyArmy(guid);
+        //     return;
+        // }
 
         const { units, buildings } = armyState;
 
@@ -247,6 +248,18 @@ class ArmyManager extends BaseManager {
 
         user.socketId = socket.id;
         socket.emit(LOBBY_START, this.answer.good(true));
+    }
+
+    private socketSpawnUnit({ guid, token, type, x, y }: { guid?: string; token?: string; type?: string; x?: number; y?: number }, socket: Socket): void {
+        if (!guid || !token || !type || x === undefined || y === undefined) return;
+
+        const user = this.mediator.get(this.TRIGGERS.GET_USER_BY_GUID, guid) as TUser | null;
+        if (!user || user.token !== token) return;
+
+        const validTypes: Array<'sporomet' | 'champigneb' | 'eblekar'> = ['sporomet', 'champigneb', 'eblekar'];
+        if (!validTypes.includes(type as 'sporomet' | 'champigneb' | 'eblekar')) return;
+
+        this.triggerSpawnUnit({ armyGuid: guid, type: type as 'sporomet' | 'champigneb' | 'eblekar', x, y });
     }
 }
 
