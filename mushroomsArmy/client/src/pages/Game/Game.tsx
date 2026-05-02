@@ -1,3 +1,4 @@
+// pages/Game/Game.tsx
 import React, { useEffect, useRef, useState, useContext } from 'react';
 import { MediatorContext, ServerContext } from '../../App';
 import CONFIG from '../../config';
@@ -5,8 +6,8 @@ import { drawGame } from './renderer';
 import { GameState } from './types';
 import { PAGES } from '../PageManager';
 import { TUser } from '../../services/server/types';
-
 import Footer from './Interface/Footer/Footer';
+import './Game.css';
 import Header from './Interface/Header/Header';
 import { camera } from '../../utils/camera';
 
@@ -32,10 +33,9 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
 
     const widthCSS = canvas.clientWidth;
     const heightCSS = canvas.clientHeight;
-
-    // Рисуем текущее состояние с учетом обновленной камеры
     if (widthCSS === 0 || heightCSS === 0) return;
 
+    // Рисуем текущее состояние с учетом обновленной камеры
     drawGame(ctx, gameStateRef.current, widthCSS, heightCSS);
   };
 
@@ -116,6 +116,9 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
     // Считаем юнитов только здесь (когда пришли данные), а не в цикле отрисовки
     const aliveCount = newState.units.filter((unit) => unit.hp > 0).length ?? 0;
     setAliveUnitsCount(aliveCount);
+
+    // gameStateRef.current = newState;
+    // redrawCanvas();
   };
 
   mediator.subscribe(EVENT_NAME, handler);
@@ -141,42 +144,35 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
   };
 
   return (
-  <div className="game-page">
-    {/* Хедер закреплен сверху (position: fixed в CSS) */}
-    <Header 
-    username={username} 
-    onExit={handleExitToLobby} 
-    />
+    <div className="game-page">
+      <Header
+        username={username}
+        onExit={handleExitToLobby}
+      />
 
-    {/* Основная игровая область */}
-    <div className="game-canvas-wrapper">
-      <canvas ref={canvasRef} className="game-canvas" />
-    </div>
+      <div className="game-canvas-wrapper">
+        <canvas ref={canvasRef} className="game-canvas" />
+      </div>
 
-    {/* ФУТЕР: Теперь он в коде, ошибка импорта исчезнет.
-        Он сам прилипнет к низу благодаря вашим стилям .game-footer-wrapper */}
-    <Footer />
+      <Footer />
 
-    {/* Модальное окно окончания игры */}
-    {isGameOver && (
-      <div className="game-overlay">
-        <div className="game-overlay-content">
-          <h2>Игра окончена</h2>
-          <div className="game-overlay-actions">
-            <button type="button" onClick={handleRestartGame}>
-              Начать заново
-            </button>
-            <button type="button" onClick={handleExitToLobby}>
-              В лобби
-            </button>
+      {isGameOver && (
+        <div className="game-overlay">
+          <div className="game-overlay-content">
+            <h2>Игра окончена</h2>
+            <div className="game-overlay-actions">
+              <button type="button" onClick={handleRestartGame}>
+                Начать заново
+              </button>
+              <button type="button" onClick={handleExitToLobby}>
+                В лобби
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    )}
-  </div>
+      )}
+    </div>
   );
 };
-
-
 
 export default Game;
