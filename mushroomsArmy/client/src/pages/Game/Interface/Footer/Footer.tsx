@@ -51,7 +51,7 @@ const Footer: React.FC = () => {
   const mediator = useContext(MediatorContext);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [resources, setResources] = useState<FooterResource[]>(getFooterResources(null));
-  
+
   // Состояние для отрисовки (сюда будем копировать данные из globalCamera)
   const [cameraState, setCameraState] = useState<TCamera>({ ...globalCamera });
 
@@ -85,9 +85,15 @@ const Footer: React.FC = () => {
 
   return (
     <footer className="game-footer-wrapper">
-      <Minimap gameState={gameState} camera={cameraState} />
+      {/* Контейнер для карты, зафиксированный слева */}
+      <div className="minimap-container">
+        <Minimap gameState={gameState} camera={cameraState} />
+      </div>
 
+      {/* Основная деревянная панель */}
       <div className="game-footer-main-panel">
+
+        {/* Подложка ресурсов */}
         <div className="game-economy-resources">
           <span className="game-economy-resources-title">Ресурсы</span>
           <div className="game-economy-resources-list">
@@ -100,14 +106,18 @@ const Footer: React.FC = () => {
           </div>
         </div>
 
-        <div className="game-footer-stats">
-          {resources.map((resource) => (
-            <div className="game-stat-item" key={resource.label}>
-              <span className="game-stat-label">{resource.label}</span>
-              <span className="game-stat-value">{resource.value}</span>
-            </div>
-          ))}
+        {/* Подложка статистики юнитов */}
+        <div className="game-footer-stats-container">
+          <div className="game-footer-stats">
+            {resources.map((resource) => (
+              <div className="game-stat-item" key={resource.label}>
+                <span className="game-stat-label">{resource.label}</span>
+                <span className="game-stat-value">{resource.value}</span>
+              </div>
+            ))}
+          </div>
         </div>
+
       </div>
     </footer>
   );
