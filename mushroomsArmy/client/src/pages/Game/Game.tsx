@@ -8,8 +8,7 @@ import { TUser } from '../../services/server/types';
 
 import Footer from './Interface/Footer/Footer';
 import Header from './Interface/Header/Header';
-
-import './Game.css';
+import { camera } from '../../utils/camera';
 
 const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -17,6 +16,9 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
   const mediator = useContext(MediatorContext);
   const server = useContext(ServerContext);
   const [isGameOver, setIsGameOver] = useState(false);
+  const [aliveUnitsCount, setAliveUnitsCount] = useState(0);
+
+  const keysPressed = useRef<{ [key: string]: boolean }>({});
 
   const GET_STORE = mediator.getTriggerTypes().GET_STORE;
   const user = mediator.get(GET_STORE, 'user') as TUser | null;
@@ -26,14 +28,45 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx || !gameStateRef.current) return;
 
     const widthCSS = canvas.clientWidth;
     const heightCSS = canvas.clientHeight;
+
+    // Рисуем текущее состояние с учетом обновленной камеры
     if (widthCSS === 0 || heightCSS === 0) return;
 
     drawGame(ctx, gameStateRef.current, widthCSS, heightCSS);
   };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => { keysPressed.current[e.code] = true; };
+    const handleKeyUp = (e: KeyboardEvent) => { keysPressed.current[e.code] = false; };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
+
+  useEffect(() => {
+    let rafId: number;
+
+    const renderLoop = () => {
+      // Вызываем перерисовку каждый кадр
+      redrawCanvas();
+      rafId = requestAnimationFrame(renderLoop);
+    };
+
+    rafId = requestAnimationFrame(renderLoop);
+
+    return () => {
+      cancelAnimationFrame(rafId); // Остановка при выходе из игры
+    };
+  }, []); // Запускается один раз при старте
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -74,19 +107,19 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
   }, []);
 
   useEffect(() => {
-    if (!mediator) return;
+  if (!mediator) return;
 
-    const EVENT_NAME = CONFIG.MEDIATOR.EVENTS.GAME_STATE_UPDATED;
-    const handler = (newState: GameState) => {
-      gameStateRef.current = newState;
-      redrawCanvas();
-    };
+  const EVENT_NAME = CONFIG.MEDIATOR.EVENTS.GAME_STATE_UPDATED;
+  const handler = (newState: GameState) => {
+    gameStateRef.current = newState;
+    
+    // Считаем юнитов только здесь (когда пришли данные), а не в цикле отрисовки
+    const aliveCount = newState.units.filter((unit) => unit.hp > 0).length ?? 0;
+    setAliveUnitsCount(aliveCount);
+  };
 
-    mediator.subscribe(EVENT_NAME, handler);
-
-    return () => {
-      mediator.unsubscribe(EVENT_NAME, handler);
-    };
+  mediator.subscribe(EVENT_NAME, handler);
+  return () => mediator.unsubscribe(EVENT_NAME, handler);
   }, [mediator]);
 
   useEffect(() => {
@@ -109,17 +142,22 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
 
   return (
   <div className="game-page">
+    {/* Хедер закреплен сверху (position: fixed в CSS) */}
     <Header 
     username={username} 
     onExit={handleExitToLobby} 
     />
 
+    {/* Основная игровая область */}
     <div className="game-canvas-wrapper">
       <canvas ref={canvasRef} className="game-canvas" />
     </div>
 
+    {/* ФУТЕР: Теперь он в коде, ошибка импорта исчезнет.
+        Он сам прилипнет к низу благодаря вашим стилям .game-footer-wrapper */}
     <Footer />
 
+    {/* Модальное окно окончания игры */}
     {isGameOver && (
       <div className="game-overlay">
         <div className="game-overlay-content">
