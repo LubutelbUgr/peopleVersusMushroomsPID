@@ -36,7 +36,7 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
     const heightCSS = canvas.clientHeight;
 
     // Рисуем текущее состояние с учетом обновленной камеры
-    drawGame(ctx, gameStateRef.current, widthCSS, heightCSS, camera);
+    drawGame(ctx, gameStateRef.current, widthCSS, heightCSS);
   };
 
   useEffect(() => {

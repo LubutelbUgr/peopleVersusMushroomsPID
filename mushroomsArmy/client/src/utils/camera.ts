@@ -10,5 +10,5 @@ export const camera = {
 camera.offsetX = window.innerWidth / 2 - (50 * 50) / 2;
 camera.offsetY = window.innerHeight / 2 - (50 * 50) / 2;
 
-export const MIN_SCALE = 0.8;
+export const MIN_SCALE = 1.0;
 export const MAX_SCALE = 15.0;
