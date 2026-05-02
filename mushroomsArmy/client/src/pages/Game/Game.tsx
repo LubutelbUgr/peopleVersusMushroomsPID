@@ -7,10 +7,9 @@ import { GameState } from './types';
 import { PAGES } from '../PageManager';
 import { TUser } from '../../services/server/types';
 import Footer from './Interface/Footer/Footer';
-import Menu from './Interface/Menu/Menu';
 import './Game.css';
 import Header from './Interface/Header/Header';
-import { camera } from '../../utils/camera';
+// import { camera } from '../../utils/camera';
 
 const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -34,9 +33,10 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
 
     const widthCSS = canvas.clientWidth;
     const heightCSS = canvas.clientHeight;
+    if (widthCSS === 0 || heightCSS === 0) return;
 
     // Рисуем текущее состояние с учетом обновленной камеры
-    drawGame(ctx, gameStateRef.current, widthCSS, heightCSS, camera);
+    drawGame(ctx, gameStateRef.current, widthCSS, heightCSS);
   };
 
   useEffect(() => {
@@ -131,6 +131,9 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
     // Считаем юнитов только здесь (когда пришли данные), а не в цикле отрисовки
     const aliveCount = newState.units.filter((unit) => unit.hp > 0).length ?? 0;
     setAliveUnitsCount(aliveCount);
+
+    // gameStateRef.current = newState;
+    // redrawCanvas();
   };
 
   mediator.subscribe(EVENT_NAME, handler);
@@ -157,22 +160,17 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
 
   return (
     <div className="game-page">
-      {/* Хедер закреплен сверху (position: fixed в CSS) */}
       <Header
         username={username}
         onExit={handleExitToLobby}
       />
 
-      {/* Основная игровая область */}
       <div className="game-canvas-wrapper">
         <canvas ref={canvasRef} className="game-canvas" />
       </div>
 
-      {/* ФУТЕР: Теперь он в коде, ошибка импорта исчезнет.
-        Он сам прилипнет к низу благодаря вашим стилям .game-footer-wrapper */}
       <Footer />
 
-      {/* Модальное окно окончания игры */}
       {isGameOver && (
         <div className="game-overlay">
           <div className="game-overlay-content">

@@ -26,7 +26,6 @@ const Header: React.FC<HeaderProps> = ({ username, onExit }) => {
 
 
       <div className="header-right">
-        {/* кнопка со стилями из Header.css */}
         <button 
           id="header-menu-btn" 
           className="menu-button" 
@@ -35,10 +34,8 @@ const Header: React.FC<HeaderProps> = ({ username, onExit }) => {
           МЕНЮ
         </button>
 
-        {/* Передаем состояние и функцию закрытия внутрь Menu */}
         <Menu 
           isOpen={isMenuOpen} 
-          // onClose={() => setIsMenuOpen(false)} 
           onExit={onExit} 
         />
       </div>
