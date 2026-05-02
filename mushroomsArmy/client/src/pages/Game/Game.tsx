@@ -10,6 +10,7 @@ import Footer from './Interface/Footer/Footer';
 import Menu from './Interface/Menu/Menu';
 import './Game.css';
 import Header from './Interface/Header/Header';
+import { camera } from '../../utils/camera';
 
 const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -18,6 +19,8 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
   const server = useContext(ServerContext);
   const [isGameOver, setIsGameOver] = useState(false);
   const [aliveUnitsCount, setAliveUnitsCount] = useState(0);
+
+  const keysPressed = useRef<{ [key: string]: boolean }>({});
 
   const GET_STORE = mediator.getTriggerTypes().GET_STORE;
   const user = mediator.get(GET_STORE, 'user') as TUser | null;
@@ -33,8 +36,21 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
     const heightCSS = canvas.clientHeight;
 
     // Рисуем текущее состояние с учетом обновленной камеры
-    drawGame(ctx, gameStateRef.current, widthCSS, heightCSS);
+    drawGame(ctx, gameStateRef.current, widthCSS, heightCSS, camera);
   };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => { keysPressed.current[e.code] = true; };
+    const handleKeyUp = (e: KeyboardEvent) => { keysPressed.current[e.code] = false; };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
 
   useEffect(() => {
     let rafId: number;
@@ -104,7 +120,7 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
 
   mediator.subscribe(EVENT_NAME, handler);
   return () => mediator.unsubscribe(EVENT_NAME, handler);
-}, [mediator]);
+  }, [mediator]);
 
   useEffect(() => {
     if (!mediator) return;
