@@ -9,7 +9,7 @@ import { TUser } from '../../services/server/types';
 import Footer from './Interface/Footer/Footer';
 import './Game.css';
 import Header from './Interface/Header/Header';
-// import { camera } from '../../utils/camera';
+import { camera } from '../../utils/camera';
 
 const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -36,7 +36,7 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
     if (widthCSS === 0 || heightCSS === 0) return;
 
     // Рисуем текущее состояние с учетом обновленной камеры
-    drawGame(ctx, gameStateRef.current, widthCSS, heightCSS);
+    drawGame(ctx, gameStateRef.current, widthCSS, heightCSS, camera);
   };
 
   useEffect(() => {
