@@ -28,6 +28,11 @@ import champignebExplFrame3 from '../../assets/units/champigneb_explosion/frame_
 import champignebExplFrame4 from '../../assets/units/champigneb_explosion/frame_4.png';
 import { camera, MIN_SCALE, MAX_SCALE } from '../../utils/camera';
 
+import grassTextureSrc from '../../assets/map/grass.webp'; 
+
+const grassImg = new Image();
+grassImg.src = grassTextureSrc;
+
 const CHAMPIGNEB_EXPL_DURATION = 1000; // 1 секунда
 const CHAMPIGNEB_EXPLOSION_FRAME_COUNT = 5;
 
@@ -224,13 +229,38 @@ export function drawGame(ctx: CanvasRenderingContext2D,
   // --- НАЧАЛО ОТРИСОВКИ ОБЪЕКТОВ ---
 
   // 1. Отрисовка карты (ландшафт)[cite: 1]
+  //[cite: 1] - Внутри цикла y/x
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
       const terrain = state.map[y]?.[x] ?? null;
+
+      if (terrain === 0 && isImageDrawable(grassImg)) {
+        // Используем простые числа побольше, чтобы избежать видимых диагональных узоров
+        const seed = (x * 15485863 + y * 2038074743); 
+    
+        ctx.save();
+        // 1. Сначала перемещаемся в центр клетки карты
+        ctx.translate(x * cellW + cellW / 2, y * cellH + cellH / 2);
+    
+        // 2. Выбираем один из 4-х углов (0, 90, 180, 270 градусов)
+        // 360 градусов — это то же самое, что 0, поэтому Math.PI * 2 не нужен
+        const rotation = (Math.abs(seed % 4) * Math.PI) / 2;
+        ctx.rotate(rotation);
+    
+        // 3. Рисуем картинку строго симметрично относительно центра[cite: 1]
+        // Координаты (-cellW / 2) гарантируют, что центр картинки совпадет с точкой translate
+        ctx.drawImage(grassImg, -cellW / 2, -cellH / 2, cellW, cellH);
+    
+        ctx.restore();
+      }
+    
+    else {
+      // Для воды, гор или если картинка не загрузилась — оставляем заливку цветом[cite: 1]
       ctx.fillStyle = getTerrainColor(terrain);
       ctx.fillRect(x * cellW, y * cellH, cellW, cellH);
     }
   }
+}
 
   // 1.5. Сетка
   drawGrid(ctx, cols * cellW, rows * cellH, cellW, cellH, rows, cols);
@@ -592,7 +622,7 @@ function drawGrid(
   cols: number
 ) {
   ctx.beginPath();
-  ctx.strokeStyle = '#cccccc';
+  ctx.strokeStyle = '#1518143c';
   ctx.lineWidth = 0.5;
   for (let x = 0; x <= cols; x++) {
     const px = x * cellW;
