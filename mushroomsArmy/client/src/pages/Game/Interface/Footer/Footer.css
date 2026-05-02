@@ -1,4 +1,3 @@
-/* Общий стиль для подложек ресурсов и статистики */
 .game-economy-resources,
 .game-footer-stats-container {
   display: flex;
@@ -93,7 +92,6 @@
   gap: 2px;
   min-width: calc(var(--font-base) * 15);
   flex-shrink: 0;
-  /* Чтобы не сжимался меньше базы */
 }
 
 .game-stat-item {
@@ -129,10 +127,8 @@
   width: var(--minimap-size);
   height: var(--minimap-size);
   flex-shrink: 0;
-  /* Чтобы основная панель не могла "сдавить" карту */
-
-  /* Опционально: рамка и фон */
   background-color: #000;
   border: 3px solid #7a5237;
   box-sizing: border-box;
+  border-radius: 4px;
 }
