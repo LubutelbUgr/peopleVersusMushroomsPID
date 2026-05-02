@@ -9,7 +9,7 @@ import { TUser } from '../../services/server/types';
 import Footer from './Interface/Footer/Footer';
 import './Game.css';
 import Header from './Interface/Header/Header';
-import { camera } from '../../utils/camera';
+// import { camera } from '../../utils/camera';
 
 const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
