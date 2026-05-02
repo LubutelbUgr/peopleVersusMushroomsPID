@@ -1,4 +1,4 @@
-import { GameState, MapTile, Projectile, TerrainType, Unit } from './types';
+import { GameState, TCamera, MapTile, Projectile, TerrainType, Unit } from './types';
 import sporometSrc from '../../assets/units/Sporomet.png';
 import champignebSrc from '../../assets/units/Champigneb.png';
 import eblekarSrc from '../../assets/units/Eblekar.png';
@@ -164,7 +164,12 @@ function getUnitImage(unit: Unit): HTMLImageElement | undefined {
   return unitImages[unit.type];
 }
 
-export function drawGame(ctx: CanvasRenderingContext2D, state: GameState | null, widthCSS: number, heightCSS: number) {
+export function drawGame(ctx: CanvasRenderingContext2D, 
+  state: GameState | null, 
+  widthCSS: number, 
+  heightCSS: number,
+  camera: TCamera
+) {
   const canvas = ctx.canvas;
   
   // Синхронизируем внутренний размер канваса с его реальным размером на экране
@@ -190,9 +195,12 @@ export function drawGame(ctx: CanvasRenderingContext2D, state: GameState | null,
   const cellW = (canvas.width / cols) * camera.scale;
   const cellH = cellW;
 
-  if (camera.scale <= 1.001) { // 1.001 для компенсации погрешности float
-    camera.offsetX = 0;
-  }
+  // if (camera.scale <= 1.001) { // 1.001 для компенсации погрешности float
+  //   camera.offsetX = 0;
+  // }
+
+  // ctx.save(); // 1. Сохраняем
+  // ctx.translate(camera.offsetX, camera.offsetY); // 2. Сдвигаем весь мир
 
   // 2. Считаем полный размер карты в пикселях
   const mapFullWidth = cols * cellW;
@@ -212,13 +220,13 @@ export function drawGame(ctx: CanvasRenderingContext2D, state: GameState | null,
   ctx.save();
   ctx.translate(camera.offsetX, camera.offsetY);
 
-  for (let y = 0; y < rows; y++) {
-    for (let x = 0; x < cols; x++) {
-      ctx.fillRect(x * cellW, y * cellH, cellW, cellH);
-    }
-  }
+  // for (let y = 0; y < rows; y++) {
+  //   for (let x = 0; x < cols; x++) {
+  //     ctx.fillRect(x * cellW, y * cellH, cellW, cellH);
+  //   }
+  // }
 
-  ctx.restore();
+  // ctx.restore();
 
   // --- НАЧАЛО ОТРИСОВКИ ОБЪЕКТОВ ---
 
@@ -471,6 +479,7 @@ export function drawGame(ctx: CanvasRenderingContext2D, state: GameState | null,
   });
 
   ctx.restore(); // Возвращаем контекст в норму
+  
 }
 
 /**

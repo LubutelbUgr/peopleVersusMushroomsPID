@@ -56,7 +56,22 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
     let rafId: number;
 
     const renderLoop = () => {
-      // Вызываем перерисовку каждый кадр
+  // Скорость движения, которая не зависит от зума
+      const moveSpeed = 10 / camera.scale; 
+
+      if (keysPressed.current['KeyW'] || keysPressed.current['ArrowUp']) {
+        camera.offsetY += moveSpeed;
+      }
+      if (keysPressed.current['KeyS'] || keysPressed.current['ArrowDown']) {
+        camera.offsetY -= moveSpeed;
+      }
+      if (keysPressed.current['KeyA'] || keysPressed.current['ArrowLeft']) {
+        camera.offsetX += moveSpeed;
+      }
+      if (keysPressed.current['KeyD'] || keysPressed.current['ArrowRight']) {
+        camera.offsetX -= moveSpeed;
+      }
+
       redrawCanvas();
       rafId = requestAnimationFrame(renderLoop);
     };
