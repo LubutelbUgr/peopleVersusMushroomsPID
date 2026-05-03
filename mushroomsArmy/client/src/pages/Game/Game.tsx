@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState, useContext } from 'react';
 import { MediatorContext, ServerContext } from '../../App';
 import CONFIG from '../../config';
-import { drawGame } from './renderer';
+import { drawGame, preloadFogWarTextures } from './renderer';
 import { GameState } from './types';
 import { PAGES } from '../PageManager';
 import { TUser } from '../../services/server/types';
@@ -27,6 +27,10 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
   const user = mediator.get(GET_STORE, 'user') as TUser | null;
   const username = user?.name || 'Игрок';
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  useEffect(() => {
+    void preloadFogWarTextures();
+  }, []);
 
   const redrawCanvas = () => {
     const canvas = canvasRef.current;
