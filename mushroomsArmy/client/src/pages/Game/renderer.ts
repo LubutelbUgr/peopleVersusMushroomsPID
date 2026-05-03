@@ -46,6 +46,9 @@ import lilyBaseSrc from '../../assets/map/water/water_lily.webp';
 
 //ассеты гор
 import mountainsTextureSrc from '../../assets/map/mountains/moutains.webp';
+import tumanSrc from '../../assets/tuman/tuman.png';
+import tuman2Src from '../../assets/tuman/tuman2.png';
+import tuman3Src from '../../assets/tuman/tuman3.png';
 
 //трава
 const grass1Img: HTMLImageElement = new Image();
@@ -89,6 +92,162 @@ const waterLilies = [lilyWhiteImg, lilyYellowImg, lilyBaseImg];
 
 const mountainImg = new Image();
 mountainImg.src = mountainsTextureSrc;
+
+/** Туман войны: несколько текстур, детерминированный выбор по координатам ячейки */
+const FOG_WAR_TEXTURE_SRCS = [tumanSrc, tuman2Src, tuman3Src] as const;
+const fogWarImages: HTMLImageElement[] = FOG_WAR_TEXTURE_SRCS.map(src => {
+  const img = new Image();
+  img.src = src;
+  return img;
+});
+
+/** Длительность растворения тумана при открытии клетки (мс) */
+const FOG_REVEAL_MS = 640;
+
+let fogPrevMap: MapTile[][] | null = null;
+/** key "x,y" → performance.now() в момент открытия клетки */
+const fogRevealAt = new Map<string, number>();
+
+function easeOutCubic(t: number): number {
+  const u = Math.max(0, Math.min(1, t));
+  return 1 - Math.pow(1 - u, 3);
+}
+
+/**
+ * Приводит значение тайла с сервера/JSON к MapTile.
+ * Туман часто приходит как null; иногда как строка "null" или лишние числа — иначе рисовалась серая заливка.
+ */
+function coerceTerrainCell(raw: unknown): MapTile {
+  if (raw === null || raw === undefined) return null;
+  if (raw === 0 || raw === 1 || raw === 2) return raw;
+  if (typeof raw === 'string') {
+    const s = raw.trim().toLowerCase();
+    if (s === '' || s === 'null') return null;
+    const n = parseInt(s, 10);
+    if (n === 0 || n === 1 || n === 2) return n as TerrainType;
+    return null;
+  }
+  if (typeof raw === 'number' && !Number.isNaN(raw)) {
+    if (raw === 0 || raw === 1 || raw === 2) return raw;
+    return null;
+  }
+  return null;
+}
+
+function getFogWarVariant(x: number, y: number): { imgIndex: number; rotation: number; flip: boolean } {
+  const seed = (x * 15485863 + y * 2038074743) ^ 0x9e3779b9;
+  return {
+    imgIndex: Math.abs(seed) % fogWarImages.length,
+    rotation: (Math.abs(seed >> 3) % 4) * (Math.PI / 2),
+    flip: (seed >> 5) % 2 === 0,
+  };
+}
+
+/**
+ * Отрисовка тумана войны по текстурам из assets/tuman (alpha 0…1).
+ * Для alpha < 1 — плавное «растворение» поверх уже нарисованного рельефа.
+ */
+function drawFogOfWarCell(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  cellW: number,
+  cellH: number,
+  nowMs: number,
+  alpha: number
+): void {
+  // Целочисленные границы + лёгкое перекрытие соседей — без субпиксельных «щелей»
+  const px0 = x * cellW;
+  const py0 = y * cellH;
+  const px = Math.floor(px0);
+  const py = Math.floor(py0);
+  const cw = Math.ceil(px0 + cellW) - px + 1;
+  const ch = Math.ceil(py0 + cellH) - py + 1;
+  const { imgIndex, rotation, flip } = getFogWarVariant(x, y);
+  const fogImg: HTMLImageElement | undefined = fogWarImages[imgIndex];
+  const breathe = 0.9 + 0.1 * Math.sin(nowMs * 0.0015 + x * 0.47 + y * 0.39);
+  const a = Math.max(0, Math.min(1, alpha * breathe));
+
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.fillStyle = `rgba(16, 20, 26, ${a * 0.45})`;
+  ctx.fillRect(px, py, cw, ch);
+  const cx = px + cw / 2;
+  const cy = py + ch / 2;
+  ctx.translate(cx, cy);
+  ctx.rotate(rotation);
+  if (flip) ctx.scale(-1, 1);
+
+  let drawn = false;
+  if (fogImg !== undefined) {
+    if (fogImg.complete && fogImg.naturalWidth > 0) {
+      drawn = tryDrawImageScaled(ctx, fogImg, -cw / 2, -ch / 2, cw, ch);
+    } else if (fogImg.src) {
+      try {
+        ctx.drawImage(fogImg, -cw / 2, -ch / 2, cw, ch);
+        drawn = fogImg.naturalWidth > 0 && fogImg.naturalHeight > 0;
+      } catch {
+        drawn = false;
+      }
+    }
+  }
+  if (!drawn) {
+    ctx.fillStyle = `rgba(32, 38, 46, ${a * 0.85})`;
+    ctx.fillRect(-cw / 2, -ch / 2, cw, ch);
+  }
+  ctx.restore();
+}
+
+function syncFogRevealTracking(map: MapTile[][]): void {
+  const rows = map.length;
+  const cols = map[0]?.length ?? 0;
+  if (rows === 0 || cols === 0) return;
+
+  if (!fogPrevMap || fogPrevMap.length !== rows || (fogPrevMap[0]?.length ?? 0) !== cols) {
+    fogPrevMap = map.map(row => row.map(cell => coerceTerrainCell(cell)));
+    fogRevealAt.clear();
+    return;
+  }
+
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const prevT = fogPrevMap[y][x];
+      const currT = coerceTerrainCell(map[y][x]);
+      if (prevT === null && currT !== null) {
+        fogRevealAt.set(`${x},${y}`, performance.now());
+      }
+    }
+  }
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      fogPrevMap[y][x] = coerceTerrainCell(map[y][x]);
+    }
+  }
+}
+
+/** Предзагрузка текстур тумана (вызывать при монтировании игры). */
+export function preloadFogWarTextures(): Promise<void> {
+  return Promise.all(
+    fogWarImages.map(
+      img =>
+        new Promise<void>(resolve => {
+          const finish = () => {
+            if (typeof img.decode === 'function') {
+              img.decode().then(() => resolve()).catch(() => resolve());
+            } else {
+              resolve();
+            }
+          };
+          if (img.complete && img.naturalWidth > 0) {
+            finish();
+            return;
+          }
+          img.addEventListener('load', finish, { once: true });
+          img.addEventListener('error', () => resolve(), { once: true });
+        })
+    )
+  ).then(() => undefined);
+}
 
 const CHAMPIGNEB_EXPL_DURATION = 1000; // 1 секунда
 const CHAMPIGNEB_EXPLOSION_FRAME_COUNT = 5;
@@ -254,6 +413,9 @@ export function drawGame(ctx: CanvasRenderingContext2D,
   const rows = state.map.length;
   const cols = state.map[0]?.length ?? 0;
 
+  const fogNow = performance.now();
+  syncFogRevealTracking(state.map);
+
   const cellW = (canvas.width / cols) * camera.scale;
   const cellH = cellW;
 
@@ -289,7 +451,7 @@ export function drawGame(ctx: CanvasRenderingContext2D,
   //[cite: 1] - Внутри цикла y/x
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
-      const terrain = state.map[y]?.[x] ?? null;
+      const terrain = coerceTerrainCell(state.map[y]?.[x]);
 
     // Отрисовка ландшафта: Равнина (terrain === 0)
     // Внутри цикла отрисовки по x и y
@@ -359,15 +521,31 @@ export function drawGame(ctx: CanvasRenderingContext2D,
         ctx.drawImage(mountainImg, -cellW / 2, -cellH / 2, cellW, cellH);
         ctx.restore();
       }
-      else {
+      else if (terrain === null) {
+        drawFogOfWarCell(ctx, x, y, cellW, cellH, fogNow, 1);
+      } else {
         ctx.fillStyle = getTerrainColor(terrain);
         ctx.fillRect(x * cellW, y * cellH, cellW, cellH);
+      }
+
+      if (terrain !== null) {
+        const key = `${x},${y}`;
+        const started = fogRevealAt.get(key);
+        if (started !== undefined) {
+          const elapsed = fogNow - started;
+          if (elapsed >= FOG_REVEAL_MS) {
+            fogRevealAt.delete(key);
+          } else {
+            const fadeAlpha = 1 - easeOutCubic(elapsed / FOG_REVEAL_MS);
+            drawFogOfWarCell(ctx, x, y, cellW, cellH, fogNow, fadeAlpha);
+          }
+        }
       }
   }
 }
 
-  // // 1.5. Сетка
-  // drawGrid(ctx, cols * cellW, rows * cellH, cellW, cellH, rows, cols);
+  // 1.5. Сетка (без линий между двумя клетками тумана — иначе «просветы» по шву)
+  drawGridFogAware(ctx, cols * cellW, rows * cellH, cellW, cellH, rows, cols, state.map);
 
   // 3. Отрисовка зданий (вражеские — красные; сооружения грибов — отдельный вид)
   const activeVzryvomorGuids = new Set(
@@ -687,7 +865,7 @@ function getTerrainColor(type: MapTile | undefined): string {
       return '#8b5a2b'; // горы - коричневый
     case null:
     default:
-      return '#9e9e9e'; // туман - серый
+      return '#2a3338'; // туман / неизвестно (fallback без текстуры)
   }
 }
 
@@ -738,6 +916,54 @@ function drawGrid(
     ctx.moveTo(0, py);
     ctx.lineTo(width, py);
   }
+  ctx.stroke();
+}
+
+/** Сетка без отрезков между двумя соседними клетками тумана (туман+туман). */
+function drawGridFogAware(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  cellW: number,
+  cellH: number,
+  rows: number,
+  cols: number,
+  map: MapTile[][]
+) {
+  ctx.beginPath();
+  ctx.strokeStyle = '#1518143c';
+  ctx.lineWidth = 0.5;
+
+  for (let x = 1; x < cols; x++) {
+    const px = x * cellW;
+    for (let y = 0; y < rows; y++) {
+      const left = coerceTerrainCell(map[y]?.[x - 1]);
+      const right = coerceTerrainCell(map[y]?.[x]);
+      if (left === null && right === null) continue;
+      ctx.moveTo(px, y * cellH);
+      ctx.lineTo(px, (y + 1) * cellH);
+    }
+  }
+
+  for (let y = 1; y < rows; y++) {
+    const py = y * cellH;
+    for (let x = 0; x < cols; x++) {
+      const up = coerceTerrainCell(map[y - 1]?.[x]);
+      const down = coerceTerrainCell(map[y]?.[x]);
+      if (up === null && down === null) continue;
+      ctx.moveTo(x * cellW, py);
+      ctx.lineTo((x + 1) * cellW, py);
+    }
+  }
+
+  ctx.moveTo(0, 0);
+  ctx.lineTo(width, 0);
+  ctx.moveTo(0, height);
+  ctx.lineTo(width, height);
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, height);
+  ctx.moveTo(width, 0);
+  ctx.lineTo(width, height);
   ctx.stroke();
 }
 
