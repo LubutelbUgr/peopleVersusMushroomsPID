@@ -8,7 +8,7 @@
   
   height: calc(var(--font-base) * 20); 
 
-  background-image: url('../../../../assets/map/menu_background.png');
+  background-image: url('../../../../assets/map/interface/menu_background.png');
 
   background-size: cover; 
   background-position: bottom;
