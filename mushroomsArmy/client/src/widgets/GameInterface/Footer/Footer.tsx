@@ -4,7 +4,7 @@ import CONFIG from '../../../config';
 import Minimap from '../MiniMap/Minimap';
 import './Footer.css';
 import { GameState, TCamera } from '../../../pages/Game/types';
-import { camera as globalCamera } from '../../../utils/camera'
+import { camera as globalCamera } from '../../../utils/camera';
 
 type FooterResource = {
   label: string;
@@ -52,20 +52,20 @@ const Footer: React.FC = () => {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [resources, setResources] = useState<FooterResource[]>(getFooterResources(null));
 
-  // Состояние для отрисовки (сюда будем копировать данные из globalCamera)
+  // Состояние для отрисовки камеры (синхронизация с глобальным объектом)[cite: 13]
   const [cameraState, setCameraState] = useState<TCamera>({ ...globalCamera });
 
   useEffect(() => {
-    // 1. Оставляем подписку на ресурсы и состояние игры[cite: 2]
     if (!mediator) return;
+
+    // Подписка на обновление состояния игры для ресурсов[cite: 13]
     const handler = (newState: GameState) => {
       setGameState(newState);
       setResources(getFooterResources(newState));
     };
     mediator.subscribe(CONFIG.MEDIATOR.EVENTS.GAME_STATE_UPDATED, handler);
 
-    // 2. Добавляем цикл обновления для камеры
-    // Будем проверять изменения каждые 16мс (~60 кадров в секунду)
+    // Цикл обновления для плавного масштабирования миникарты[cite: 13]
     const interval = setInterval(() => {
       setCameraState({
         offsetX: globalCamera.offsetX,
@@ -79,42 +79,47 @@ const Footer: React.FC = () => {
 
     return () => {
       mediator.unsubscribe(CONFIG.MEDIATOR.EVENTS.GAME_STATE_UPDATED, handler);
-      clearInterval(interval); // Важно очистить таймер
+      clearInterval(interval);
     };
   }, [mediator]);
 
   return (
     <footer className="game-footer-wrapper">
-      {/* Контейнер для карты, зафиксированный слева */}
+      {/* Контейнер для миникарты (фиксирован слева)[cite: 13] */}
       <div className="minimap-container">
         <Minimap gameState={gameState} camera={cameraState} />
       </div>
 
-      {/* Основная деревянная панель */}
+      {/* Основная панель интерфейса */}
       <div className="game-footer-main-panel">
 
-        {/* Подложка ресурсов */}
-        <div className="game-economy-resources">
+        {/* Блок 1: Ресурсы (фиксированная ширина) */}
+        <div className="game-economy-container">
           <span className="game-economy-resources-title">Ресурсы</span>
-          <div className="game-economy-resources-list">
-            {ECONOMY_RESOURCES.map((resource) => (
-              <div className="game-economy-resource" key={resource.id}>
-                <span className="game-economy-resource-label">{resource.label}:</span>
-                <span className="game-economy-resource-value">{resource.value}</span>
-              </div>
-            ))}
+          <div className="game-economy-resources">
+            <div className="game-economy-resources-list">
+              {ECONOMY_RESOURCES.map((resource) => (
+                <div className="game-economy-resource" key={resource.id}>
+                  <span className="game-economy-resource-label">{resource.label}:</span>
+                  <span className="game-economy-resource-value">{resource.value}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Подложка статистики юнитов */}
-        <div className="game-footer-stats-container">
-          <div className="game-footer-stats">
-            {resources.map((resource) => (
-              <div className="game-stat-item" key={resource.label}>
-                <span className="game-stat-label">{resource.label}</span>
-                <span className="game-stat-value">{resource.value}</span>
-              </div>
-            ))}
+        {/* Блок 2: Армия (растягивается на всё свободное место) */}
+        <div className="game-footer-stats-layout">
+          <span className="game-economy-resources-title">Армия</span>
+          <div className="game-footer-stats-container">
+            <div className="game-footer-stats">
+              {resources.map((resource) => (
+                <div className="game-stat-item" key={resource.label}>
+                  <span className="game-stat-label">{resource.label}</span>
+                  <span className="game-stat-value">{resource.value}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
