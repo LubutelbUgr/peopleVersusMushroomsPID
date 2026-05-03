@@ -28,16 +28,52 @@ import champignebExplFrame3 from '../../assets/units/champigneb_explosion/frame_
 import champignebExplFrame4 from '../../assets/units/champigneb_explosion/frame_4.png';
 import { camera, MIN_SCALE, MAX_SCALE } from '../../utils/camera';
 
-import grassTextureSrc from '../../assets/map/grass/grass.webp';
+//ассеты травы
+import grassTextureSrc1 from '../../assets/map/grass/grass1.webp';
+import grassTextureSrc2 from '../../assets/map/grass/grass2.webp';
+import grassTextureSrc3 from '../../assets/map/grass/grass3.webp';
+import grassWithFrlowersTextureSrc from '../../assets/map/grass/grass_with_flowers.webp';
+import grassWithFlowersTextureSrc2 from '../../assets/map/grass/grass_with_flowers2.webp';
+import grass1TextureSrc22 from '../../assets/map/grass/grass_with_flowers22.webp';
+import grassWithOneFlowerTextureSrc from '../../assets/map/grass/grass_with_one_flower.webp';
+
+//ассеты водички
 import waterTextureSrc from '../../assets/map/water/water.webp';
 import waterFlowersSrc from '../../assets/map/water/water_with_flowers.webp';
 import lilyWhiteSrc from '../../assets/map/water/water_lily_with_white_flowers.webp';
 import lilyYellowSrc from '../../assets/map/water/water_lily_with_yellow_flowers.webp';
 import lilyBaseSrc from '../../assets/map/water/water_lily.webp'; 
+
+//ассеты гор
 import mountainsTextureSrc from '../../assets/map/mountains/moutains.webp';
 
-const grassImg = new Image();
-grassImg.src = grassTextureSrc;
+//трава
+const grass1Img: HTMLImageElement = new Image();
+grass1Img.src = grassTextureSrc1;
+const grass2Img: HTMLImageElement = new Image();
+grass2Img.src = grassTextureSrc2;
+const grass3Img: HTMLImageElement = new Image();
+grass3Img.src = grassTextureSrc3;
+const flower1Img: HTMLImageElement = new Image();
+flower1Img.src = grassWithFrlowersTextureSrc;
+const flower2Img: HTMLImageElement = new Image();
+flower2Img.src = grassWithFlowersTextureSrc2;
+const flower3Img: HTMLImageElement = new Image();
+flower3Img.src = grass1TextureSrc22;
+const flower4Img: HTMLImageElement = new Image();
+flower4Img.src = grassWithOneFlowerTextureSrc;
+
+const weightedPool: HTMLImageElement[] = [
+  ...Array(15).fill(grass1Img),
+
+  ...Array(15).fill(grass2Img), 
+  ...Array(4).fill(grass3Img),
+
+  ...Array(1).fill(flower1Img),
+  ...Array(1).fill(flower2Img),
+  ...Array(1).fill(flower3Img),
+  ...Array(1).fill(flower4Img),
+];
 
 const waterBaseImg = new Image();
 waterBaseImg.src = waterTextureSrc;
@@ -255,23 +291,28 @@ export function drawGame(ctx: CanvasRenderingContext2D,
     for (let x = 0; x < cols; x++) {
       const terrain = state.map[y]?.[x] ?? null;
 
-      //равнина
-      if (terrain === 0 && isImageDrawable(grassImg)) {
-        const seed = (x * 15485863 + y * 2038074743); 
-    
+    // Отрисовка ландшафта: Равнина (terrain === 0)
+    // Внутри цикла отрисовки по x и y
+    if (terrain === 0) {
+      // Агрессивный хэш для устранения линейных паттернов
+      // Числа 12.9898 и 78.233 — классические константы для генерации шума
+      const hash = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+      const seed = Math.abs(hash - Math.floor(hash)); 
+      
+      // Выбираем индекс из подготовленного пула
+      const assetIndex = Math.floor(seed * weightedPool.length);
+      const activeImg = weightedPool[assetIndex];
+
+      if (isImageDrawable(activeImg)) {
         ctx.save();
-        ctx.translate(x * cellW + cellW / 2, y * cellH + cellH / 2);
-    
-        //выбираемм один из 4-х углов (0, 90, 180, 270 градусов)
-        const rotation = (Math.abs(seed % 4) * Math.PI) / 2;
-        ctx.rotate(rotation);
-    
-        //строго симметрично относительно центра[cite: 1]
-        //координаты (-cellW / 2) гарантируют, что центр картинки совпадет с точкой translate
-        ctx.drawImage(grassImg, -cellW / 2, -cellH / 2, cellW, cellH);
-    
+        
+        // Отрисовка без вращения, строго по сетке
+        ctx.translate(x * cellW, y * cellH);
+        ctx.drawImage(activeImg, 0, 0, cellW, cellH);
+        
         ctx.restore();
-      } 
+      }
+    }
       //вода
       else if (terrain === 1 && isImageDrawable(waterBaseImg)) {
       // Отрисовка воды
@@ -325,8 +366,8 @@ export function drawGame(ctx: CanvasRenderingContext2D,
   }
 }
 
-  // 1.5. Сетка
-  drawGrid(ctx, cols * cellW, rows * cellH, cellW, cellH, rows, cols);
+  // // 1.5. Сетка
+  // drawGrid(ctx, cols * cellW, rows * cellH, cellW, cellH, rows, cols);
 
   // 3. Отрисовка зданий (вражеские — красные; сооружения грибов — отдельный вид)
   const activeVzryvomorGuids = new Set(
