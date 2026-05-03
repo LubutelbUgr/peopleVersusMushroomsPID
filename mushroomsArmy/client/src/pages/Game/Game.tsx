@@ -11,13 +11,14 @@ import { camera } from '../../utils/camera';
 import Header from '../../widgets/GameInterface/Header/Header';
 import Footer from '../../widgets/GameInterface/Footer/Footer';
 import Menu from '../../widgets/GameInterface/Menu/Menu';
+import GameOver from '../../widgets/GameInterface/GameOver/GameOver';
 
 const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const gameStateRef = useRef<GameState | null>(null);
   const mediator = useContext(MediatorContext);
   const server = useContext(ServerContext);
-  const [isGameOver, setIsGameOver] = useState(false);
+  const [isGameOver, setIsGameOver] = useState(true);
   const [aliveUnitsCount, setAliveUnitsCount] = useState(0);
 
   const keysPressed = useRef<{ [key: string]: boolean }>({});
@@ -221,19 +222,10 @@ const Game: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
       <Footer />
 
       {isGameOver && (
-        <div className="game-overlay">
-          <div className="game-overlay-content">
-            <h2>Игра окончена</h2>
-            <div className="game-overlay-actions">
-              <button type="button" onClick={handleRestartGame}>
-                Начать заново
-              </button>
-              <button type="button" onClick={handleExitToLobby}>
-                В лобби
-              </button>
-            </div>
-          </div>
-        </div>
+        <GameOver 
+          onRestart={handleRestartGame} 
+          onExit={handleExitToLobby} 
+        />
       )}
     </div>
   );
