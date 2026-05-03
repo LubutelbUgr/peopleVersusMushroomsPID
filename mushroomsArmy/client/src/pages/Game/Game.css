@@ -59,6 +59,9 @@ button, input, select, textarea {
   margin: 0;
   overflow: hidden;
   position: relative;
+  padding-top: var(--header-height);
+  padding-bottom: var(--footer-height);
+  box-sizing: border-box;
 }
 
 /* --- КОНТЕЙНЕР ДЛЯ КАРТЫ (Растягивание) --- */
