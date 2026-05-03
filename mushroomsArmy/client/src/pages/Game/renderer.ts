@@ -120,8 +120,13 @@ function drawFogOfWarCell(
   nowMs: number,
   alpha: number
 ): void {
-  const px = x * cellW;
-  const py = y * cellH;
+  // Целочисленные границы + лёгкое перекрытие соседей — без субпиксельных «щелей»
+  const px0 = x * cellW;
+  const py0 = y * cellH;
+  const px = Math.floor(px0);
+  const py = Math.floor(py0);
+  const cw = Math.ceil(px0 + cellW) - px + 1;
+  const ch = Math.ceil(py0 + cellH) - py + 1;
   const { imgIndex, rotation, flip } = getFogWarVariant(x, y);
   const fogImg: HTMLImageElement | undefined = fogWarImages[imgIndex];
   const breathe = 0.9 + 0.1 * Math.sin(nowMs * 0.0015 + x * 0.47 + y * 0.39);
@@ -130,9 +135,9 @@ function drawFogOfWarCell(
   ctx.save();
   ctx.globalAlpha = a;
   ctx.fillStyle = `rgba(16, 20, 26, ${a * 0.45})`;
-  ctx.fillRect(px, py, cellW, cellH);
-  const cx = px + cellW / 2;
-  const cy = py + cellH / 2;
+  ctx.fillRect(px, py, cw, ch);
+  const cx = px + cw / 2;
+  const cy = py + ch / 2;
   ctx.translate(cx, cy);
   ctx.rotate(rotation);
   if (flip) ctx.scale(-1, 1);
@@ -140,10 +145,10 @@ function drawFogOfWarCell(
   let drawn = false;
   if (fogImg !== undefined) {
     if (fogImg.complete && fogImg.naturalWidth > 0) {
-      drawn = tryDrawImageScaled(ctx, fogImg, -cellW / 2, -cellH / 2, cellW, cellH);
+      drawn = tryDrawImageScaled(ctx, fogImg, -cw / 2, -ch / 2, cw, ch);
     } else if (fogImg.src) {
       try {
-        ctx.drawImage(fogImg, -cellW / 2, -cellH / 2, cellW, cellH);
+        ctx.drawImage(fogImg, -cw / 2, -ch / 2, cw, ch);
         drawn = fogImg.naturalWidth > 0 && fogImg.naturalHeight > 0;
       } catch {
         drawn = false;
@@ -152,7 +157,7 @@ function drawFogOfWarCell(
   }
   if (!drawn) {
     ctx.fillStyle = `rgba(32, 38, 46, ${a * 0.85})`;
-    ctx.fillRect(-cellW / 2, -cellH / 2, cellW, cellH);
+    ctx.fillRect(-cw / 2, -ch / 2, cw, ch);
   }
   ctx.restore();
 }
@@ -498,8 +503,8 @@ export function drawGame(ctx: CanvasRenderingContext2D,
   }
 }
 
-  // 1.5. Сетка
-  drawGrid(ctx, cols * cellW, rows * cellH, cellW, cellH, rows, cols);
+  // 1.5. Сетка (без линий между двумя клетками тумана — иначе «просветы» по шву)
+  drawGridFogAware(ctx, cols * cellW, rows * cellH, cellW, cellH, rows, cols, state.map);
 
   // 3. Отрисовка зданий (вражеские — красные; сооружения грибов — отдельный вид)
   const activeVzryvomorGuids = new Set(
@@ -870,6 +875,54 @@ function drawGrid(
     ctx.moveTo(0, py);
     ctx.lineTo(width, py);
   }
+  ctx.stroke();
+}
+
+/** Сетка без отрезков между двумя соседними клетками тумана (туман+туман). */
+function drawGridFogAware(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  cellW: number,
+  cellH: number,
+  rows: number,
+  cols: number,
+  map: MapTile[][]
+) {
+  ctx.beginPath();
+  ctx.strokeStyle = '#1518143c';
+  ctx.lineWidth = 0.5;
+
+  for (let x = 1; x < cols; x++) {
+    const px = x * cellW;
+    for (let y = 0; y < rows; y++) {
+      const left = coerceTerrainCell(map[y]?.[x - 1]);
+      const right = coerceTerrainCell(map[y]?.[x]);
+      if (left === null && right === null) continue;
+      ctx.moveTo(px, y * cellH);
+      ctx.lineTo(px, (y + 1) * cellH);
+    }
+  }
+
+  for (let y = 1; y < rows; y++) {
+    const py = y * cellH;
+    for (let x = 0; x < cols; x++) {
+      const up = coerceTerrainCell(map[y - 1]?.[x]);
+      const down = coerceTerrainCell(map[y]?.[x]);
+      if (up === null && down === null) continue;
+      ctx.moveTo(x * cellW, py);
+      ctx.lineTo((x + 1) * cellW, py);
+    }
+  }
+
+  ctx.moveTo(0, 0);
+  ctx.lineTo(width, 0);
+  ctx.moveTo(0, height);
+  ctx.lineTo(width, height);
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, height);
+  ctx.moveTo(width, 0);
+  ctx.lineTo(width, height);
   ctx.stroke();
 }
 
