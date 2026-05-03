@@ -535,8 +535,8 @@ function initCameraListeners(canvas: HTMLCanvasElement) {
     e.preventDefault();
 
     const oldScale = camera.scale;
-    // Чувствительность зума
-    const zoomDelta = -e.deltaY * 0.0015;
+    // Линейный зум: фиксированный шаг на каждый щелчок колеса.
+    const zoomDelta = -e.deltaY * 0.005;
     camera.scale = Math.min(Math.max(camera.scale + zoomDelta, MIN_SCALE), MAX_SCALE);
 
     if (oldScale !== camera.scale) {
