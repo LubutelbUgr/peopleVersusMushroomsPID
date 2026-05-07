@@ -166,6 +166,89 @@ const FOG_REVEAL_MS = 640;
 let fogPrevMap: MapTile[][] | null = null;
 /** key "x,y" → performance.now() в момент открытия клетки */
 const fogRevealAt = new Map<string, number>();
+let exploredTerrainMap: MapTile[][] | null = null;
+let exploredMask: boolean[][] | null = null;
+
+const ALLY_UNIT_VISION_RADIUS = 4;
+const ALLY_BUILDING_VISION_RADIUS = 5;
+
+function createGrid<T>(rows: number, cols: number, valueFactory: () => T): T[][] {
+  return Array.from({ length: rows }, () => Array.from({ length: cols }, valueFactory));
+}
+
+function ensureExplorationMaps(rows: number, cols: number): void {
+  const shapeChanged =
+    !exploredTerrainMap ||
+    exploredTerrainMap.length !== rows ||
+    (exploredTerrainMap[0]?.length ?? 0) !== cols ||
+    !exploredMask ||
+    exploredMask.length !== rows ||
+    (exploredMask[0]?.length ?? 0) !== cols;
+  if (!shapeChanged) return;
+  exploredTerrainMap = createGrid<MapTile>(rows, cols, () => null);
+  exploredMask = createGrid<boolean>(rows, cols, () => false);
+}
+
+function syncExplorationMemory(map: MapTile[][]): void {
+  const rows = map.length;
+  const cols = map[0]?.length ?? 0;
+  if (rows === 0 || cols === 0) return;
+  ensureExplorationMaps(rows, cols);
+  if (!exploredTerrainMap || !exploredMask) return;
+
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const terrain = coerceTerrainCell(map[y]?.[x]);
+      if (terrain !== null) {
+        exploredMask[y][x] = true;
+        exploredTerrainMap[y][x] = terrain;
+      }
+    }
+  }
+}
+
+function isFriendlyUnit(unit: Unit): boolean {
+  return unit.type === 'sporomet' || unit.type === 'champigneb' || unit.type === 'eblekar';
+}
+
+function isFriendlyBuildingType(type: string): boolean {
+  return type === 'vzryvomor' || type === 'sporovaya_bashnya';
+}
+
+function stampCircle(mask: boolean[][], cx: number, cy: number, radius: number): void {
+  const rows = mask.length;
+  const cols = mask[0]?.length ?? 0;
+  const rr = radius * radius;
+  const minY = Math.max(0, Math.floor(cy - radius));
+  const maxY = Math.min(rows - 1, Math.ceil(cy + radius));
+  const minX = Math.max(0, Math.floor(cx - radius));
+  const maxX = Math.min(cols - 1, Math.ceil(cx + radius));
+
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      const dx = x - cx;
+      const dy = y - cy;
+      if (dx * dx + dy * dy <= rr) mask[y][x] = true;
+    }
+  }
+}
+
+function buildCircularVisibilityMask(state: GameState, rows: number, cols: number): boolean[][] {
+  const mask = createGrid<boolean>(rows, cols, () => false);
+  state.units.forEach(unit => {
+    if (unit.hp <= 0 || !isFriendlyUnit(unit)) return;
+    stampCircle(mask, unit.x, unit.y, ALLY_UNIT_VISION_RADIUS);
+  });
+  (state.buildings ?? []).forEach(building => {
+    if (building.hp <= 0 || !isFriendlyBuildingType(building.type)) return;
+    const sx = building.sizeX ?? 1;
+    const sy = building.sizeY ?? 1;
+    const centerX = building.x + (sx - 1) * 0.5;
+    const centerY = building.y + (sy - 1) * 0.5;
+    stampCircle(mask, centerX, centerY, ALLY_BUILDING_VISION_RADIUS);
+  });
+  return mask;
+}
 
 function easeOutCubic(t: number): number {
   const u = Math.max(0, Math.min(1, t));
@@ -254,6 +337,28 @@ function drawFogOfWarCell(
     ctx.fillStyle = `rgba(32, 38, 46, ${a * 0.85})`;
     ctx.fillRect(-cw / 2, -ch / 2, cw, ch);
   }
+  ctx.restore();
+}
+
+/** Серая зона: уже разведано, но вне текущего обзора. */
+function drawStaleFogCell(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  cellW: number,
+  cellH: number
+): void {
+  const px0 = x * cellW;
+  const py0 = y * cellH;
+  const px = Math.floor(px0);
+  const py = Math.floor(py0);
+  const cw = Math.ceil(px0 + cellW) - px + 1;
+  const ch = Math.ceil(py0 + cellH) - py + 1;
+  ctx.save();
+  ctx.fillStyle = 'rgba(24, 28, 35, 0.42)';
+  ctx.fillRect(px, py, cw, ch);
+  ctx.fillStyle = 'rgba(100, 106, 116, 0.14)';
+  ctx.fillRect(px, py, cw, ch);
   ctx.restore();
 }
 
@@ -484,6 +589,8 @@ export function drawGame(ctx: CanvasRenderingContext2D,
 
   const fogNow = performance.now();
   syncFogRevealTracking(state.map);
+  syncExplorationMemory(state.map);
+  const circularVisibilityMask = buildCircularVisibilityMask(state, rows, cols);
 
   const cellW = (canvas.width / cols) * camera.scale;
   const cellH = cellW;
@@ -519,7 +626,12 @@ export function drawGame(ctx: CanvasRenderingContext2D,
   // 1. Отрисовка карты (ландшафт)
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
-      const terrain = coerceTerrainCell(state.map[y]?.[x]);
+      const serverTerrain = coerceTerrainCell(state.map[y]?.[x]);
+      const rememberedTerrain = exploredTerrainMap?.[y]?.[x] ?? null;
+      const wasExplored = exploredMask?.[y]?.[x] === true && rememberedTerrain !== null;
+      const currentlyVisible = circularVisibilityMask[y]?.[x] === true && serverTerrain !== null;
+      const terrain: MapTile = currentlyVisible ? serverTerrain : wasExplored ? rememberedTerrain : null;
+      const terrainSourceMap = currentlyVisible ? state.map : (exploredTerrainMap ?? state.map);
 
     // Отрисовка ландшафта: Равнина (terrain === 0)
     // Внутри цикла отрисовки по x и y
@@ -559,7 +671,7 @@ export function drawGame(ctx: CanvasRenderingContext2D,
       // 1. Детерминированный выбор базового слоя воды
       const seed = (x * 15485863 + y * 2038074743);
       const probability = Math.abs(seed % 100);
-      const neighbors = getNeighbors(state.map, x, y);      
+      const neighbors = getNeighbors(terrainSourceMap, x, y);      
       let currentImg: HTMLImageElement;
 
       if (probability < 70) {
@@ -608,10 +720,10 @@ export function drawGame(ctx: CanvasRenderingContext2D,
 
       // 4. Внутренние уголки (скругление вогнутых углов воды)
       // Рисуются, когда основные соседи — вода, а диагональный — земля
-      const tTopLeft = coerceTerrainCell(state.map[y - 1]?.[x - 1]);
-      const tTopRight = coerceTerrainCell(state.map[y - 1]?.[x + 1]);
-      const tBottomLeft = coerceTerrainCell(state.map[y + 1]?.[x - 1]);
-      const tBottomRight = coerceTerrainCell(state.map[y + 1]?.[x + 1]);
+      const tTopLeft = coerceTerrainCell(terrainSourceMap[y - 1]?.[x - 1]);
+      const tTopRight = coerceTerrainCell(terrainSourceMap[y - 1]?.[x + 1]);
+      const tBottomLeft = coerceTerrainCell(terrainSourceMap[y + 1]?.[x - 1]);
+      const tBottomRight = coerceTerrainCell(terrainSourceMap[y + 1]?.[x + 1]);
 
       if (neighbors.top !== 0 && neighbors.left !== 0 && tTopLeft === 0) {
           if (isImageDrawable(edgeImages.innerTopLeft)) 
@@ -660,7 +772,11 @@ export function drawGame(ctx: CanvasRenderingContext2D,
         ctx.fillRect(x * cellW, y * cellH, cellW, cellH);
       }
 
-      if (terrain !== null) {
+      if (!currentlyVisible && wasExplored && terrain !== null) {
+        drawStaleFogCell(ctx, x, y, cellW, cellH);
+      }
+
+      if (currentlyVisible && terrain !== null) {
         const key = `${x},${y}`;
         const started = fogRevealAt.get(key);
         if (started !== undefined) {
@@ -688,6 +804,20 @@ export function drawGame(ctx: CanvasRenderingContext2D,
 
   (state.buildings ?? []).forEach(building => {
     if (building.hp <= 0) return;
+    const sx = building.sizeX ?? 1;
+    const sy = building.sizeY ?? 1;
+    let buildingVisibleNow = false;
+    for (let yy = 0; yy < sy && !buildingVisibleNow; yy++) {
+      for (let xx = 0; xx < sx; xx++) {
+        const tx = building.x + xx;
+        const ty = building.y + yy;
+        if (circularVisibilityMask[ty]?.[tx] === true) {
+          buildingVisibleNow = true;
+          break;
+        }
+      }
+    }
+    if (!buildingVisibleNow && !isFriendlyBuildingType(building.type)) return;
 
     const bx = building.x * cellW;
     const by = building.y * cellH;
@@ -831,6 +961,9 @@ export function drawGame(ctx: CanvasRenderingContext2D,
     const y = projectile.fromY + (projectile.toY - projectile.fromY) * elapsed;
     const px = x * cellW + cellW / 2;
     const py = y * cellH + cellH / 2;
+    const pTileX = Math.floor(x);
+    const pTileY = Math.floor(y);
+    if (circularVisibilityMask[pTileY]?.[pTileX] !== true) continue;
 
     ctx.beginPath();
     ctx.arc(px, py, 4, 0, Math.PI * 2);
@@ -882,6 +1015,10 @@ export function drawGame(ctx: CanvasRenderingContext2D,
   // 4. Отрисовка юнитов (только живых)
   state.units.forEach(unit => {
     if (unit.hp <= 0) return; // мёртвых не рисуем
+    const ux = Math.floor(unit.x);
+    const uy = Math.floor(unit.y);
+    const unitVisibleNow = circularVisibilityMask[uy]?.[ux] === true;
+    if (!unitVisibleNow && !isFriendlyUnit(unit)) return;
 
     const cx = unit.x * cellW + cellW / 2;
     const cy = unit.y * cellH + cellH / 2;
