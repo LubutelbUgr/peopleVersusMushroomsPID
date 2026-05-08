@@ -25,6 +25,7 @@ export type TBuildingState = {
     x: number;
     y: number;
     hp: number;
+    visibility?: number;
     isAlive?: boolean;
     isExploding?: boolean;
     isAttacking?: boolean;
@@ -371,20 +372,14 @@ export class Army {
             })
         
         if (isOk) {
-            let guid = common.guid();
+            const guid = common.guid();
             if (type === 'vzryvomor') {
-                this.buildings.push(new Vzryvomor({ guid: guid, x: x, y: y, attackRange: 12 }));
+                this.buildings.push(new Vzryvomor({ guid, x, y, attackRange: 12 }));
+            } else {
+                this.buildings.push(new SporovayaBashnya({ guid, x, y, projectiles: this.projectiles }));
             }
-            else if (type === 'sporovaya_bashnya') {
-                this.buildings.push(new SporovayaBashnya({ guid: guid, x: x, y: y, projectiles: this.projectiles }));
-            }
-            else {
-                return null;
-            }
-            return { guid: guid };
+            return { guid };
         }
-        else {
-            return null;
-        }
+        return null;
     }
 }
