@@ -16,6 +16,7 @@ class Sporomet extends Unit {
 
     constructor(options: TUnitOptions) {
         super(options);
+        this.visibility = options.visibility ?? 15;
         this.hp = 8;
         this.maxHp = 8;
         this.speed = options.speed ?? 1;

@@ -77,6 +77,7 @@ export type TUnit = {
     y: number;
     hp: number;
     maxHp: number;
+    visibility?: number;
     isHealing?: boolean;
 }
 

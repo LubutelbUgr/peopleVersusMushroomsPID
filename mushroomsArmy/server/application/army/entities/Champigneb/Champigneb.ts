@@ -17,6 +17,7 @@ class Champigneb extends Unit {
 
     constructor(options: TUnitOptions) {
         super(options);
+        this.visibility = options.visibility ?? 10;
         this.hp = 35;
         this.maxHp = 35;
         this.speed = options.speed ?? 3;

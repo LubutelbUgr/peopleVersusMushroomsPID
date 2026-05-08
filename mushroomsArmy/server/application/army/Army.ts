@@ -25,6 +25,7 @@ export type TBuildingState = {
     x: number;
     y: number;
     hp: number;
+    visibility?: number;
     isAlive?: boolean;
     isExploding?: boolean;
     isAttacking?: boolean;

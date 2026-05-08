@@ -20,6 +20,7 @@ export type Unit = {
   y: number;                
   type: 'sporomet' | 'champigneb' | 'eblekar';
   hp: number;               
+  visibility?: number;
   isHealing?: boolean;          
 };
 
@@ -32,6 +33,7 @@ export type Building = {
   x: number;
   y: number;
   hp: number;
+  visibility?: number;
   sizeX?: number;
   sizeY?: number;
   isAlive?: boolean;

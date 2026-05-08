@@ -134,26 +134,31 @@ class ArmyManager extends BaseManager {
         const visible = new Uint8Array(rows * cols);
 
         const reveal = (cx: number, cy: number, r: number) => {
+            const rr = r * r;
             const x0 = Math.max(0, Math.floor(cx - r));
             const x1 = Math.min(cols - 1, Math.ceil(cx + r));
             const y0 = Math.max(0, Math.floor(cy - r));
             const y1 = Math.min(rows - 1, Math.ceil(cy + r));
             for (let y = y0; y <= y1; y++) {
                 for (let x = x0; x <= x1; x++) {
-                    visible[y * cols + x] = 1;
+                    const dx = x - cx;
+                    const dy = y - cy;
+                    if (dx * dx + dy * dy <= rr) {
+                        visible[y * cols + x] = 1;
+                    }
                 }
             }
         };
 
         for (const unit of armyState.units) {
-            if (unit.hp > 0) reveal(unit.x, unit.y, visionRadius);
+            if (unit.hp > 0) reveal(unit.x, unit.y, unit.visibility ?? visionRadius);
         }
         for (const building of armyState.buildings) {
             const hp = building.hp ?? 0;
             if (hp > 0 && building.type !== 'house' && building.type !== 'barracks' && building.type !== 'tower') {
                 const sizeX = building.sizeX ?? 1;
                 const sizeY = building.sizeY ?? 1;
-                reveal(building.x + sizeX / 2, building.y + sizeY / 2, visionRadius);
+                reveal(building.x + sizeX / 2, building.y + sizeY / 2, building.visibility ?? visionRadius);
             }
         }
 

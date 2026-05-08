@@ -237,7 +237,8 @@ function buildCircularVisibilityMask(state: GameState, rows: number, cols: numbe
   const mask = createGrid<boolean>(rows, cols, () => false);
   state.units.forEach(unit => {
     if (unit.hp <= 0 || !isFriendlyUnit(unit)) return;
-    stampCircle(mask, unit.x, unit.y, ALLY_UNIT_VISION_RADIUS);
+    const radius = Math.max(0, unit.visibility ?? ALLY_UNIT_VISION_RADIUS);
+    stampCircle(mask, unit.x, unit.y, radius);
   });
   (state.buildings ?? []).forEach(building => {
     if (building.hp <= 0 || !isFriendlyBuildingType(building.type)) return;
@@ -245,7 +246,8 @@ function buildCircularVisibilityMask(state: GameState, rows: number, cols: numbe
     const sy = building.sizeY ?? 1;
     const centerX = building.x + (sx - 1) * 0.5;
     const centerY = building.y + (sy - 1) * 0.5;
-    stampCircle(mask, centerX, centerY, ALLY_BUILDING_VISION_RADIUS);
+    const radius = Math.max(0, building.visibility ?? ALLY_BUILDING_VISION_RADIUS);
+    stampCircle(mask, centerX, centerY, radius);
   });
   return mask;
 }

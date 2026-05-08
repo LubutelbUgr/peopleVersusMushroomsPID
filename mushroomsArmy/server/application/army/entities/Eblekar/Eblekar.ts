@@ -19,6 +19,7 @@ class Eblekar extends Unit {
 
     constructor(options: TUnitOptions) {
         super(options);
+        this.visibility = options.visibility ?? 12;
         this.hp = 40;
         this.maxHp = 40;
         this.speed = options.speed ?? 1;

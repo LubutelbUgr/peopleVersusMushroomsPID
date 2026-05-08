@@ -14,6 +14,7 @@ export type TUnitOptions = {
     x: number;
     y: number;
     attackRange?: number;
+    visibility?: number;
     projectiles?: TProjectile[];
 };
 
@@ -23,6 +24,7 @@ export type TUnitState = {
   x: number;
   y: number;
   hp: number;
+  visibility?: number;
   isHealing?: boolean;
 };
 
@@ -56,6 +58,7 @@ class Unit {
     public speed: number;
     public x: number;
     public y: number;
+    public visibility: number;
     public targetX: number;
     public targetY: number;
     public isAlive: boolean;
@@ -72,7 +75,7 @@ class Unit {
     private decisionAccumulator: number = 0;
     private readonly DECISION_INTERVAL: number = 0.5; 
 
-    constructor({guid, type, x, y, hp, speed, attackRange, projectiles = []}: TUnitOptions) {
+    constructor({guid, type, x, y, hp, speed, attackRange, visibility, projectiles = []}: TUnitOptions) {
         this.guid = guid;
         this.type = type;
         this.x = x;
@@ -80,6 +83,7 @@ class Unit {
         this.hp = hp ?? 0;
         this.speed = speed ?? 0;
         this.attackRange = attackRange ?? 0;
+        this.visibility = visibility ?? 1;
         this.projectiles = projectiles;
         this.targetX = x;
         this.targetY = y;
@@ -300,6 +304,7 @@ class Unit {
             x: Math.floor(this.x),
             y: Math.floor(this.y),
             hp: this.hp,
+            visibility: this.visibility,
         };
     }
 
