@@ -16,6 +16,16 @@ const MAX_HP: Record<string, number> = {
   sporovaya_bashnya: 160,
 };
 
+const ECONOMY_BUILDING_CONFIG: Record<string, { label: string; color: string }> = {
+  mycelium: { label: 'Г', color: '#ec4899' },
+  incubator: { label: 'И', color: '#a855f7' },
+  small_bioreactor: { label: 'Р', color: '#06b6d4' },
+  big_bioreactor: { label: 'БР', color: '#3b82f6' },
+  fat_barrel: { label: 'Б', color: '#f97316' },
+  iron_barrel: { label: 'Ж', color: '#6b7280' },
+  mine: { label: 'Ш', color: '#eab308' },
+};
+
 export const getMaxHp = (type: string): number => MAX_HP[type] ?? 100;
 
 const unitImages: Record<string, HTMLImageElement> = {};
@@ -278,6 +288,33 @@ export function drawBuildings(
       return;
     }
 
+    const economyBuilding = ECONOMY_BUILDING_CONFIG[building.type];
+    if (economyBuilding) {
+      const bw = cellW * 1.4;
+      const bh = cellH * 1.4;
+      const bOffX = bx - bw / 2 + cellW / 2;
+      const bOffY = by - bh / 2 + cellH / 2;
+
+      ctx.fillStyle = economyBuilding.color;
+      ctx.fillRect(bOffX, bOffY, bw, bh);
+
+      ctx.strokeStyle = '#4c1d95';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(bOffX, bOffY, bw, bh);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `bold ${Math.max(8, cellW * 0.32)}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(economyBuilding.label, bx + cellW / 2, by + cellH / 2);
+
+      ctx.fillStyle = '#d32f2f';
+      ctx.fillRect(bOffX, bOffY - 6, bw, 4);
+      ctx.fillStyle = '#4caf50';
+      ctx.fillRect(bOffX, bOffY - 6, bw * hpPercent, 4);
+      return;
+    }
+
     const bw = cellW * 1.4;
     const bh = cellH * 1.4;
     const bOffX = bx - bw / 2 + cellW / 2;
@@ -363,4 +400,3 @@ export function drawProjectileLayer(
 ): void {
   drawProjectiles(ctx, state.projectiles ?? [], cellW, cellH, circularVisibilityMask, Date.now());
 }
-

@@ -16,6 +16,17 @@ const getTerrainColor = (tile: MapTile): string => {
   }
 };
 
+const ownBuildingTypes = ['vzryvomor', 'sporovaya_bashnya'];
+const economyBuildingTypes = [
+  'mycelium',
+  'incubator',
+  'small_bioreactor',
+  'big_bioreactor',
+  'fat_barrel',
+  'iron_barrel',
+  'mine',
+];
+
 const Minimap: React.FC<MinimapProps> = ({ gameState, camera }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -24,7 +35,6 @@ const Minimap: React.FC<MinimapProps> = ({ gameState, camera }) => {
     if (!gameState) return [];
     const rows = gameState.map?.length || 100;
     const cols = gameState.map?.[0]?.length || 100;
-    const ownBuildingTypes = ['vzryvomor', 'sporovaya_bashnya'];
     const clamp = (v: number) => Math.max(0, Math.min(100, v));
 
     const unitDots = gameState.units
@@ -40,7 +50,11 @@ const Minimap: React.FC<MinimapProps> = ({ gameState, camera }) => {
       .filter((b) => b.hp > 0 && b.isAlive !== false)
       .map((b) => ({
         guid: b.guid,
-        color: ownBuildingTypes.includes(b.type) ? '#ffd966' : '#f05252',
+        color: ownBuildingTypes.includes(b.type)
+          ? '#ffd966'
+          : economyBuildingTypes.includes(b.type)
+            ? '#a855f7'
+            : '#f05252',
         x: clamp(((b.x + (b.sizeX ?? 1) / 2) / cols) * 100),
         y: clamp(((b.y + (b.sizeY ?? 1) / 2) / rows) * 100),
       }));
