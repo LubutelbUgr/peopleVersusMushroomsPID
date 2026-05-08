@@ -5,7 +5,7 @@ import { Socket } from 'socket.io';
 
 const GLOBAL_CONFIG = require('../../../../../global/globalConfig');
 
-const { GAME_STATE, GAME_OVER, LOBBY_START, GAME_STARTED } = CONFIG.SOCKET;
+const { GAME_STATE, LOBBY_START, GAME_STARTED } = CONFIG.SOCKET;
 
 type TStartGame = { guid: string; map?: TMap; buildings: TBuildingInput[]; mapGuid: string };
 type TTakeDamage = { armyGuid: string; unitGuid: string; amount: number };
@@ -13,6 +13,7 @@ type TMoveUnit = { armyGuid: string; unitGuid: string; x: number; y: number };
 type TGetArmy = string;
 type TSpawnUnit = { armyGuid: string; type: 'sporomet' | 'champigneb' | 'eblekar'; x: number; y: number };
 type TSpawnBuildingUnit = { armyGuid: string; type: 'vzryvomor' | 'sporovaya_bashnya'; x: number; y: number };
+type TUpdateEconomyBuildings = { armyGuid: string; buildings: TBuildingInput[] };
 type TUser = { guid: string; token: string; socketId: string; name: string };
 
 type TVisibleEntity = {
@@ -60,6 +61,10 @@ class ArmyManager extends BaseManager {
 
         this.mediator.set(CONFIG.MEDIATOR.TRIGGERS.SPAWN_BUILDING, (data: unknown) => 
             this.triggerSpawnBuildingUnit(data as TSpawnBuildingUnit)
+        );
+
+        this.mediator.set(CONFIG.MEDIATOR.TRIGGERS.UPDATE_ECONOMY_BUILDINGS, (data: unknown) =>
+            this.triggerUpdateEconomyBuildings(data as TUpdateEconomyBuildings)
         );
 
         if (!this.io) return;
@@ -128,6 +133,14 @@ class ArmyManager extends BaseManager {
         return army.spawnBuilding(type, x, y, this.common);
     }
 
+    private triggerUpdateEconomyBuildings({ armyGuid, buildings }: TUpdateEconomyBuildings): boolean {
+        const army = this.army[armyGuid];
+        if (!army) return false;
+
+        army.setEconomyBuildings(buildings);
+        return true;
+    }
+
     private buildFogMap(armyState: TArmyState, fullMap: TMap, visionRadius: number = 8): TMap {
         const rows = fullMap.length;
         const cols = fullMap[0]?.length ?? 0;
@@ -170,11 +183,11 @@ class ArmyManager extends BaseManager {
         const fogMap = army ? this.buildFogMap(armyState, army.map) : armyState.map;
         this.io.to(user.socketId).emit(GAME_STATE, this.answer.good({ ...armyState, map: fogMap }));
 
-        if (army && army.getAliveUnits().length === 0) {
-            this.io.to(user.socketId).emit(GAME_OVER, this.answer.good({ message: 'Все юниты погибли' }));
-            this.destroyArmy(guid);
-            return;
-        }
+        // if (army && army.getAliveUnits().length === 0) {
+        //     this.io.to(user.socketId).emit(GAME_OVER, this.answer.good({ message: 'Все юниты погибли' }));
+        //     this.destroyArmy(guid);
+        //     return;
+        // }
         
         // if (army && army.buildings.length === 0) {
         //     this.io.to(user.socketId).emit(GAME_OVER, this.answer.good({ message: 'Все здания разрушены' }));

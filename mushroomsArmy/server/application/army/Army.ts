@@ -61,6 +61,7 @@ export class Army {
     public units: Unit[] = [];
     public enemyUnits: Unit[] = [];
     public enemyBuildings: TBuildingInput[] = [];
+    public economyBuildings: TBuildingInput[] = [];
     public projectiles: TProjectile[] = [];
     public callbacks: { update: (guid: string, data: TArmyState) => void };
     private intervalId: NodeJS.Timeout;
@@ -79,12 +80,6 @@ export class Army {
     }
 
     private create(common: Common, initialBuildings: TBuildingInput[] = []) {
-        this.units.push(new Sporomet({ guid: common.guid(), type: 'sporomet', x: 0, y: 0, projectiles: this.projectiles }));
-        this.units.push(new Sporomet({ guid: common.guid(), type: 'sporomet', x: 10, y: 10, projectiles: this.projectiles }));
-        this.units.push(new Sporomet({ guid: common.guid(), type: 'sporomet', x: 20, y: 20, projectiles: this.projectiles }));
-        this.units.push(new Champigneb({ guid: common.guid(), type: 'champigneb', x: 5, y: 5 }));
-        this.units.push(new Champigneb({ guid: common.guid(), type: 'champigneb', x: 45, y: 50 }));
-        this.units.push(new Eblekar({ guid: common.guid(), type: 'eblekar', x: 15, y: 20, projectiles: this.projectiles }));
         // Создание своих зданий из initialBuildings
         for (const building of initialBuildings) {
             if (building.type === 'sporovaya_bashnya') {
@@ -107,6 +102,10 @@ export class Army {
         // Вражеские здания (house, barracks, tower) — в прокси-цели для юнитов
         this.enemyBuildings = initialBuildings.filter(b => b.type !== 'sporovaya_bashnya' && b.type !== 'vzryvomor');
         this.updateEnemyEntities(this.enemyBuildings);
+    }
+
+    public setEconomyBuildings(buildings: TBuildingInput[]): void {
+        this.economyBuildings = [...buildings];
     }
 
     /** Синхронизирует урон по proxy-цели с локальным списком зданий врага */
@@ -161,7 +160,7 @@ export class Army {
         const zoneX0 = mapCols - 15; // левая граница зоны (включительно)
         const zoneY0 = mapRows - 15; // верхняя граница зоны (включительно)
         const zoneX1 = mapCols - 1;  // правая граница (включительно)
-        const zoneY1 = mapRows - 1;  // нижняя граница (включительно)
+        const zoneY1 = mapRows - 1;  // нижняя граница зоны (включительно)
 
         // Вспомогательная функция: разместить башню 2×2 с левым верхним тайлом (topY, leftX)
         const tryPlaceTower = (topY: number, leftX: number): void => {
@@ -304,6 +303,7 @@ export class Army {
             buildings: [
                 ...this.buildings.map(b => b.getState()),
                 ...this.enemyBuildings.map(b => ({ ...b, hp: b.hp ?? 0 })),
+                ...this.economyBuildings.map(b => ({ ...b, hp: b.hp ?? 0 })),
             ],
             slimePuddles: this.units
                 .filter(u => u.type === 'champigneb' && !u.isAlive)
