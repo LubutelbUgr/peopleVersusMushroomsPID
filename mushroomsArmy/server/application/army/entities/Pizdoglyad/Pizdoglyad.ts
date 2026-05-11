@@ -20,7 +20,7 @@ class Pizdoglyad extends Unit {
     constructor(options: TUnitOptions) {
         super({ ...options, hp: 2, speed: 7, attackRange: 0 });
         this.baseHp = 2;
-        // Ускоренный цикл принятия решений: 0.3 с
+        this.visibility = 28; 
         (this as any).DECISION_INTERVAL = 0.3;
     }
 
