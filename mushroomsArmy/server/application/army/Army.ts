@@ -351,7 +351,7 @@ export class Army {
         } else if (type === 'eblekar') {
             this.units.push(new Eblekar({ guid, type, x, y, speed: 1, attackRange: 1, projectiles: this.projectiles }));
         } else if (type === 'pizdoglyad') {
-            this.units.push(new Pizdoglyad({ guid, type, x, y, speed: 3.5 }));
+            this.units.push(new Pizdoglyad({ guid, type, x, y, speed: 7 }));
         }
         
         return { guid };
