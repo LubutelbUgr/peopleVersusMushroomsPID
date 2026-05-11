@@ -1,10 +1,10 @@
-﻿// Игровые изображения: спрайты юнитов, зданий и текстуры тумана войны
+// Игровые изображения: спрайты юнитов, зданий и текстуры тумана войны
 
 import sporometSrc from '../../../assets/units/Sporomet.png';
 import champignebSrc from '../../../assets/units/Champigneb.png';
 import eblekarSrc from '../../../assets/units/Eblekar.png';
-import pizdoglyadIdleSrc from '../../assets/units/Pizdoglyad2.png'; 
-import pizdoglyadWalkSrc from '../../assets/units/Pizdoglyad1.png'; 
+import pizdoglyadIdleSrc from '../../../assets/units/Pizdoglyad2.png';
+import pizdoglyadWalkSrc from '../../../assets/units/Pizdoglyad1.png';
 
 import vzryvomorFrame0 from '../../../assets/buildings/vzryvomor/frame_0.png';
 import vzryvomorFrame1 from '../../../assets/buildings/vzryvomor/frame_1.png';
