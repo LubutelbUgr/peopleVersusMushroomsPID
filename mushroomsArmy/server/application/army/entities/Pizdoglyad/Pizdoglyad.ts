@@ -1,23 +1,6 @@
 import { TMap } from "../../Army";
 import Unit, { TUnitOptions } from "../Units";
 
-/**
- * Пиздогляд — юнит-разведчик (спека 4.1–4.4)
- *
- * HP: 2 | Скорость: 7 | Атака: 0 | Видимость: 28
- *
- * Поведение (три режима, в порядке приоритета):
- *  PANIC  — враг ближе 12 м → бежим к ближайшему союзнику / прочь
- *  WATCH  — враг в 22–25 м  → стоим, «светим»
- *  SCOUT  — врагов нет или они дальше 25 м → идём к ближайшей границе тумана
- *
- * Архитектурное решение:
- *  Переопределяем onEnemyFound и добавляем собственный флаг режима.
- *  В update() ПЕРЕД вызовом super.update() выставляем нужный target,
- *  а onEnemyFound заполняет target когда базовый makeDecision его вызывает.
- *  Чтобы базовый «нет врагов → center (50,50)» не мешал,
- *  переопределяем onNoEnemyFound() — хук, который вызывается вместо hardcoded center.
- */
 class Pizdoglyad extends Unit {
     public visionRadius: number = 28;
 
@@ -32,10 +15,6 @@ class Pizdoglyad extends Unit {
     /** Союзники, переданные снаружи через update() */
     private lastAllies: Unit[] = [];
 
-    /**
-     * Режим, выставленный в onEnemyFound / onNoEnemyFound за текущий тик.
-     * Нужен чтобы moveTo в super.update знал актуальный target.
-     */
     private currentMode: 'panic' | 'watch' | 'scout' = 'scout';
 
     constructor(options: TUnitOptions) {
@@ -45,14 +24,6 @@ class Pizdoglyad extends Unit {
         (this as any).DECISION_INTERVAL = 0.3;
     }
 
-    // ─────────────────────────────────────────────────────────────────────── //
-    //  Хуки базового класса
-    // ─────────────────────────────────────────────────────────────────────── //
-
-    /**
-     * Вызывается базовым makeDecision когда ближайший враг найден.
-     * Расставляем target в зависимости от дистанции.
-     */
     protected onEnemyFound(enemy: Unit, distance: number): void {
         if (distance <= this.PANIC_RANGE) {
             this.currentMode = 'panic';
@@ -100,20 +71,11 @@ class Pizdoglyad extends Unit {
         this.scoutTarget = null;
     }
 
-    /**
-     * Переопределяем поведение «нет врагов»:
-     * базовый класс делал targetX=50, targetY=50 — вместо этого скаутим.
-     * Вызывается напрямую нашим update() ПЕРЕД super.update().
-     */
     private onNoEnemy(map: TMap): void {
         this.currentMode = 'scout';
         this.scoutCooldown -= (this as any).lastDeltaTime ?? 0.3;
         this.doScout(map);
     }
-
-    // ─────────────────────────────────────────────────────────────────────── //
-    //  Основной update
-    // ─────────────────────────────────────────────────────────────────────── //
 
     public update(enemies: Unit[], map: TMap, deltaTime: number, allies: Unit[] = []): void {
         if (!this.isAlive) return;
@@ -122,45 +84,25 @@ class Pizdoglyad extends Unit {
         // Сохраняем deltaTime для использования внутри onNoEnemy
         (this as any).lastDeltaTime = deltaTime;
 
-        // Определяем ближайшего живого врага самостоятельно,
-        // чтобы не зависеть от порядка вызовов внутри super.
         const nearestEnemy = this.findNearestEnemy(enemies);
 
         if (nearestEnemy) {
-            // Есть враг — onEnemyFound выставит target через makeDecision в super,
-            // но мы вызываем его явно заранее, чтобы target был актуален до moveTo.
             const dx = nearestEnemy.x - this.x;
             const dy = nearestEnemy.y - this.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
             this.onEnemyFound(nearestEnemy, distance);
         } else {
-            // Нет врагов — скаутим; target выставляем ДО super.update,
-            // чтобы base makeDecision (с его center-fallback) не перебил.
+
             this.onNoEnemy(map);
         }
-
-        // Вызываем super только ради moveTo (pathfinding + движение).
-        // makeDecision внутри super тоже отработает, но target уже выставлен нами —
-        // onEnemyFound/onNoEnemyFound вызовутся повторно с тем же результатом,
-        // либо center-запись перезапишется нашим корректным target в doScout.
-        // Чтобы избежать двойной работы полностью — передаём пустой список врагов
-        // в super, тогда base makeDecision пойдёт по ветке «нет врагов»,
-        // но мы уже переопределили что там делать через onNoEnemyOverride ниже.
         this.pizdoglyadMoveOnly(map, deltaTime);
     }
 
-    /**
-     * Вызывает только moveTo из базового класса, минуя makeDecision.
-     * Нам не нужен базовый цикл решений — мы всё делаем сами в update().
-     */
+
     private pizdoglyadMoveOnly(map: TMap, deltaTime: number): void {
         // Напрямую вызываем protected moveTo через any, не трогая makeDecision
         (this as any).moveTo(this.targetX, this.targetY, map, deltaTime);
     }
-
-    // ─────────────────────────────────────────────────────────────────────── //
-    //  Скаутинг
-    // ─────────────────────────────────────────────────────────────────────── //
 
     private doScout(map: TMap): void {
         const atTarget =
@@ -233,11 +175,6 @@ class Pizdoglyad extends Unit {
         return null;
     }
 
-    // ─────────────────────────────────────────────────────────────────────── //
-    //  Утилиты
-    // ─────────────────────────────────────────────────────────────────────── //
-
-    /** Ближайший живой враг из списка (без учёта LoS — как в base для fallback). */
     private findNearestEnemy(enemies: Unit[]): Unit | null {
         let best: Unit | null = null;
         let bestDist = Infinity;
@@ -249,9 +186,7 @@ class Pizdoglyad extends Unit {
         return best;
     }
 
-    /**
-     * Ближайший живой союзник (не пиздогляд) для режима паники.
-     */
+    //Ближайший живой союзник
     private findSafePoint(): { x: number; y: number } | null {
         const candidates = this.lastAllies.filter(
             u => u.isAlive && u.guid !== this.guid && u.type !== 'pizdoglyad'
