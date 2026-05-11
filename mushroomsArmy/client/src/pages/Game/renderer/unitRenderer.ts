@@ -14,6 +14,7 @@ const MAX_HP: Record<string, number> = {
   eblekar: 40,
   vzryvomor: 70,
   sporovaya_bashnya: 160,
+  pizdoglyad: 2,
 };
 
 const ECONOMY_BUILDING_CONFIG: Record<string, { label: string; color: string }> = {
