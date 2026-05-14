@@ -22,11 +22,22 @@ type TVisibleEntity = {
     x: number;
     y: number;
     hp: number;
+    size?: number;
+    sizeX?: number;
+    sizeY?: number;
+    level?: number;
+    visibility?: number;
 };
 
 type TVisibilityResponse = {
     units: TVisibleEntity[];
     buildings: TVisibleEntity[];
+};
+
+type TAnswer<T> = {
+    result: 'ok' | 'error';
+    data?: T;
+    error?: unknown;
 };
 
 type TReliefResponse = TMap;
@@ -216,10 +227,14 @@ class ArmyManager extends BaseManager {
             { mapGuid: army.mapGuid, userGuid: army.guid, buildings }
         );
 
-        // карта возвращает { units, buildings } (см. Map.getVisbileEntitiesByRole)
-        const visibility = await this.sendToMap<TVisibilityResponse>(
-            GLOBAL_CONFIG.URLS.GET_VISIBILITY, army.mapGuid, army.guid
+        // карта возвращает answer.good({ units, buildings })
+        const visibilityResponse = await this.sendToMap<TAnswer<TVisibilityResponse>>(
+            GLOBAL_CONFIG.URLS.GET_VISIBILITY, 
+            army.mapGuid,
+            army.guid
         );
+
+        const visibility = visibilityResponse?.data;    
 
         const visibleEnemies: TVisibleEntity[] = [
             ...(visibility?.units ?? []),
@@ -233,6 +248,9 @@ class ArmyManager extends BaseManager {
                 x: entity.x,
                 y: entity.y,
                 hp: entity.hp,
+                sizeX: entity.sizeX ?? entity.size ?? 1,
+                sizeY: entity.sizeY ?? entity.size ?? 1,
+                level: entity.level,
             }));
             army.updateEnemyEntities(enemyEntities);
         }
