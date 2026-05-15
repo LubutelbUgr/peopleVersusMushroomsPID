@@ -6,6 +6,9 @@ import Pizdoglyad from "./entities/Pizdoglyad/Pizdoglyad";
 import SporovayaBashnya from "./entities/SporovayaBashnya/SporovayaBashnya";
 import Unit, { TProjectile, TUnitState } from "./entities/Units";
 import { IBuilding, Vzryvomor } from "./entities/Vzryvomor/Vzryvomor";
+import { ArmyStateManager, ArmyMode, ArmyMetrics, ScoutTracker } from './ArmyStateManager';
+import { EconomyRequest, EconomyResponse } from './ArmyStateManager';
+
 
 export type TMap = (number | null)[][];
 
@@ -44,7 +47,14 @@ export type TArmyOptions = {
     buildings: TBuildingInput[];
     guid: string;
     common: Common;
-    callbacks: { update: (guid: string, data: TArmyState) => void; takeDamage?: (unitGuid: string, amount: number) => void };
+    callbacks: { 
+        update: (guid: string, data: TArmyState) => void; 
+        takeDamage?: (unitGuid: string, amount: number) => void;
+        onModeChange?: (mode: ArmyMode) => void;
+        onDistanceMilestone?: (distance: number) => void;
+        onScoutRespawn?: (scoutGuid: string) => void;
+    };
+    economyRequestCallback?: (request: EconomyRequest) => Promise<EconomyResponse | null>;
 };
 
 export type TArmyState = {
@@ -65,8 +75,16 @@ export class Army {
     public enemyBuildings: TBuildingInput[] = [];
     public economyBuildings: TBuildingInput[] = [];
     public projectiles: TProjectile[] = [];
-    public callbacks: { update: (guid: string, data: TArmyState) => void; takeDamage?: (unitGuid: string, amount: number) => void };
+    public callbacks: { 
+        update: (guid: string, data: TArmyState) => void; 
+        takeDamage?: (unitGuid: string, amount: number) => void;
+        onModeChange?: (mode: ArmyMode) => void;
+        onDistanceMilestone?: (distance: number) => void;
+        onScoutRespawn?: (scoutGuid: string) => void;
+    };
     private intervalId: NodeJS.Timeout;
+    
+    private stateManager: ArmyStateManager;
 
     constructor(options: TArmyOptions) {
         this.map = options.map;
@@ -74,11 +92,34 @@ export class Army {
         this.guid = options.guid;
         this.callbacks = options.callbacks;
         this.create(options.common, options.buildings);
+        
+        this.stateManager = new ArmyStateManager({
+            army: this,
+            common: options.common,
+            onModeChange: options.callbacks.onModeChange,
+            onDistanceMilestone: options.callbacks.onDistanceMilestone,
+            onScoutRespawn: options.callbacks.onScoutRespawn,
+            economyRequestCallback: options.economyRequestCallback,
+        });
+        
         this.intervalId = setInterval(() => this.update(), 200);
     }
 
     public destructor(): void {
         clearInterval(this.intervalId);
+        this.stateManager.destroy(); 
+    }
+
+    public getMetrics(): Readonly<ArmyMetrics> {
+        return this.stateManager.getMetrics();
+    }
+
+    public getScouts(): ScoutTracker[] {
+        return this.stateManager.getScouts();
+    }
+
+    public async requestEconomy(request: Omit<EconomyRequest, 'armyGuid'>): Promise<EconomyResponse | null> {
+        return this.stateManager.requestEconomy(request);
     }
 
     private create(common: Common, initialBuildings: TBuildingInput[] = []) {
@@ -290,7 +331,7 @@ export class Army {
             }
             return b.isAlive;
         });
-        
+
         this.units = this.units.filter(unit => {
             if (unit.type === 'champigneb' && !unit.isAlive) {
                 return (unit as unknown as Champigneb).slimePuddle.ttl > 0;
@@ -331,7 +372,6 @@ export class Army {
     }
 
     public spawnUnit(type: 'sporomet' | 'champigneb' | 'eblekar' | 'pizdoglyad', x: number, y: number, common: Common): { guid: string } | null {
-        // Проверяем границы карты
         if (y < 0 || y >= this.map.length || x < 0 || x >= (this.map[0]?.length ?? 0)) {
             return null;
         }
@@ -354,8 +394,11 @@ export class Army {
             this.units.push(new Pizdoglyad({ guid, type, x, y, speed: 7 }));
         }
         
+        this.stateManager.registerUnitSpawn(type, guid);
+        
         return { guid };
     }
+
 
     public spawnBuilding(type: 'vzryvomor' | 'sporovaya_bashnya', x: number, y: number, common: Common){
         const isValid = (y1: number, x1: number) => {
