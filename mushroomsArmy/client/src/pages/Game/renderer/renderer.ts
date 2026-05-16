@@ -13,7 +13,7 @@ import { drawTerrainCell, drawGridFogAware } from './terrainRenderer';
 import { drawBuildings, drawUnits, drawProjectileLayer } from './unitRenderer';
 
 interface IInitializableCanvas extends HTMLCanvasElement {
-    __cameraInitialized?: boolean;
+  __cameraInitialized?: boolean;
 }
 
 export { preloadFogWarTextures };

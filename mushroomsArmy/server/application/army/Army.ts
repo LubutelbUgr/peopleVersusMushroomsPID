@@ -44,7 +44,11 @@ export type TArmyOptions = {
     buildings: TBuildingInput[];
     guid: string;
     common: Common;
-    callbacks: { update: (guid: string, data: TArmyState) => void; takeDamage?: (unitGuid: string, amount: number) => void };
+    callbacks: {
+        update: (guid: string, data: TArmyState) => void;
+        takeDamage?: (unitGuid: string, amount: number) => void;
+        takeEconomyDamage?: (buildingGuid: string, amount: number) => void
+    };
 };
 
 export type TArmyState = {
@@ -65,7 +69,11 @@ export class Army {
     public enemyBuildings: TBuildingInput[] = [];
     public economyBuildings: TBuildingInput[] = [];
     public projectiles: TProjectile[] = [];
-    public callbacks: { update: (guid: string, data: TArmyState) => void; takeDamage?: (unitGuid: string, amount: number) => void };
+    public callbacks: {
+        update: (guid: string, data: TArmyState) => void;
+        takeDamage?: (unitGuid: string, amount: number) => void;
+        takeEconomyDamage?: (buildingGuid: string, amount: number) => void;
+    };
     private intervalId: NodeJS.Timeout;
 
     constructor(options: TArmyOptions) {
@@ -108,6 +116,7 @@ export class Army {
 
     public setEconomyBuildings(buildings: TBuildingInput[]): void {
         this.economyBuildings = [...buildings];
+        this.updateEnemyEntities(this.enemyBuildings); // Перестраивает общий стек (боевые + новые экономические)
     }
 
     /** Синхронизирует урон по proxy-цели с локальным списком зданий врага */
@@ -124,8 +133,19 @@ export class Army {
         this.enemyBuildings[buildingIndex].hp = hp;
     }
 
+    private syncEconomyBuildingDamage(guid: string, hp: number): void {
+        const buildingIndex = this.economyBuildings.findIndex(b => b.guid === guid);
+        if (buildingIndex === -1) return;
+
+        if (hp <= 0) {
+            this.economyBuildings.splice(buildingIndex, 1);
+            return;
+        }
+        this.economyBuildings[buildingIndex].hp = hp;
+    }
+
     /** Создаёт proxy-юнита для здания и пробрасывает урон обратно в this.buildings. */
-    private createEnemyProxy(entity: TBuildingInput): Unit {
+    private createEnemyProxy(entity: TBuildingInput, isEconomy: boolean = false): Unit {
         const proxy = new Unit({
             guid: entity.guid,
             type: entity.type,
@@ -140,14 +160,21 @@ export class Army {
 
         proxy.takeDamage = (amount: number): void => {
             baseTakeDamage(amount);
-            this.syncBuildingDamage(proxy.guid, proxy.hp);
-            this.callbacks.takeDamage?.(proxy.guid, amount);
+
+            if (isEconomy) {
+                this.syncEconomyBuildingDamage(proxy.guid, proxy.hp);
+                this.callbacks.takeEconomyDamage?.(proxy.guid, amount);
+            } else {
+                // Если боевое здание — старая логика
+                this.syncBuildingDamage(proxy.guid, proxy.hp);
+                this.callbacks.takeDamage?.(proxy.guid, amount);
+            }
         };
 
         return proxy;
     }
 
-     static generateDefensiveLayout(map: TMap, common: Common): TBuildingInput[] {
+    static generateDefensiveLayout(map: TMap, common: Common): TBuildingInput[] {
         const mapRows = map.length;
         const mapCols = map[0]?.length ?? 0;
         if (mapRows === 0 || mapCols === 0) return [];
@@ -212,24 +239,34 @@ export class Army {
         return result;
     }
 
-    /** Обновляет цели из видимости: существующим proxy меняет координаты, и создаёт новых по guid. */
+    /** Обновляет цели из видимости, собирая боевые и экономические здания в единый пул прокси-целей */
     public updateEnemyEntities(entities: TBuildingInput[]): void {
         const existingEnemiesByGuid = new Map(
             this.enemyUnits.map(enemy => [enemy.guid, enemy] as const)
         );
 
-        this.enemyUnits = entities.map(entity => {
+        // 1. Создаем/обновляем прокси для боевых зданий врага
+        const combatProxies = entities.map(entity => {
             const existingEnemy = existingEnemiesByGuid.get(entity.guid);
-
             if (existingEnemy) {
                 existingEnemy.x = entity.x;
                 existingEnemy.y = entity.y;
                 return existingEnemy;
             }
-
-            return this.createEnemyProxy(entity);
+            return this.createEnemyProxy(entity, false);
         });
-        
+
+        const economyProxies = this.economyBuildings.map(entity => {
+            const existingEnemy = existingEnemiesByGuid.get(entity.guid);
+            if (existingEnemy) {
+                existingEnemy.x = entity.x;
+                existingEnemy.y = entity.y;
+                return existingEnemy;
+            }
+            return this.createEnemyProxy(entity, true);
+        });
+
+        this.enemyUnits = [...combatProxies, ...economyProxies];
     }
 
     /** Наносит урон вражеским юнитам, находящимся в лужах слизи (5 damage/sec) */
@@ -290,7 +327,7 @@ export class Army {
             }
             return b.isAlive;
         });
-        
+
         this.units = this.units.filter(unit => {
             if (unit.type === 'champigneb' && !unit.isAlive) {
                 return (unit as unknown as Champigneb).slimePuddle.ttl > 0;
@@ -326,7 +363,7 @@ export class Army {
         return y < 0 || y >= this.map.length || x < 0 || x >= (this.map[0]?.length ?? 0);
     }
 
-    private isInsideMap(y: number, x: number){
+    private isInsideMap(y: number, x: number) {
         return !this.isOutsideMap(y, x);
     }
 
@@ -353,30 +390,29 @@ export class Army {
         } else if (type === 'pizdoglyad') {
             this.units.push(new Pizdoglyad({ guid, type, x, y, speed: 7 }));
         }
-        
+
         return { guid };
     }
 
-    public spawnBuilding(type: 'vzryvomor' | 'sporovaya_bashnya', x: number, y: number, common: Common){
+    public spawnBuilding(type: 'vzryvomor' | 'sporovaya_bashnya', x: number, y: number, common: Common) {
         const isValid = (y1: number, x1: number) => {
             // Тайл должен быть 0 (только равнина — не вода, не горы, не туман)
             return this.map[y1][x1] === 0;
         }
 
-        let coords = null; 
-        if (type === 'sporovaya_bashnya'){
-            coords = [[y,x], [y + 1, x], [y, x + 1], [y+1, x + 1]];
+        let coords = null;
+        if (type === 'sporovaya_bashnya') {
+            coords = [[y, x], [y + 1, x], [y, x + 1], [y + 1, x + 1]];
         }
-        else if (type === 'vzryvomor'){
-            coords = [[y,x]];
+        else if (type === 'vzryvomor') {
+            coords = [[y, x]];
         }
-        
-        let isOk = 
-            coords?.every(c => {
-                const [y, x] = c;
-                return isValid(y, x) && this.isInsideMap(y, x)
-            })
-        
+
+        const isOk = coords?.every(c => {
+            const [yVal, xVal] = c; 
+            return this.isInsideMap(yVal, xVal) && isValid(yVal, xVal);
+        });
+
         if (isOk) {
             const guid = common.guid();
             if (type === 'vzryvomor') {

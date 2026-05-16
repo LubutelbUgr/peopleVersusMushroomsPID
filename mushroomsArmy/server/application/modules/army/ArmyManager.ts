@@ -7,8 +7,9 @@ const GLOBAL_CONFIG = require('../../../../../global/globalConfig');
 
 const { GAME_STATE, LOBBY_START, GAME_STARTED } = CONFIG.SOCKET;
 
-type TStartGame = { guid: string; map?: TMap; buildings: TBuildingInput[]; mapGuid: string; peopleArmyGuid?: string | null };
+type TStartGame = { guid: string; map?: TMap; buildings: TBuildingInput[]; mapGuid: string; peopleArmyGuid?: string | null; peopleEconomyGuid?: string | null };
 type TTakeDamage = { armyGuid: string; unitGuid: string; amount: number };
+type TTakeEconomyDamage = { buildingGuid: string; amount: number; economyGuid: string };
 type TMoveUnit = { armyGuid: string; unitGuid: string; x: number; y: number };
 type TGetArmy = string;
 type TSpawnUnit = { armyGuid: string; type: 'sporomet' | 'champigneb' | 'eblekar'; x: number; y: number };
@@ -33,7 +34,7 @@ type TReliefResponse = TMap;
 
 class ArmyManager extends BaseManager {
     private army: { [guid: string]: Army };
-    private armyGuids: Record<string, { peopleArmyGuid: string | null }>;
+    private armyGuids: Record<string, { peopleArmyGuid: string | null; peopleEconomyGuid: string | null }>;
 
     constructor(options: TManagerOptions) {
         super(options);
@@ -45,6 +46,10 @@ class ArmyManager extends BaseManager {
 
         this.mediator.set(CONFIG.MEDIATOR.TRIGGERS.TAKE_DAMAGE_HANDLER, (data: unknown) =>
             this.triggerTakeDamage(data as TTakeDamage)
+        );
+
+        this.mediator.set(CONFIG.MEDIATOR.TRIGGERS.TAKE_ECONOMY_DAMAGE, (data: unknown) =>
+            this.triggerTakeEconomyDamage(data as TTakeEconomyDamage)
         );
 
         this.mediator.set(CONFIG.MEDIATOR.TRIGGERS.DESTROY_ARMY, (data: unknown) => this.destroyArmy(data as string));
@@ -61,7 +66,7 @@ class ArmyManager extends BaseManager {
             this.triggerSpawnUnit(data as TSpawnUnit)
         );
 
-        this.mediator.set(CONFIG.MEDIATOR.TRIGGERS.SPAWN_BUILDING, (data: unknown) => 
+        this.mediator.set(CONFIG.MEDIATOR.TRIGGERS.SPAWN_BUILDING, (data: unknown) =>
             this.triggerSpawnBuildingUnit(data as TSpawnBuildingUnit)
         );
 
@@ -74,6 +79,15 @@ class ArmyManager extends BaseManager {
             socket.on(LOBBY_START, (data: { guid?: string; token?: string }) => this.socketLobbyStart(data, socket));
             socket.on(CONFIG.SOCKET.SPAWN_UNIT, (data: { guid?: string; token?: string; type?: string; x?: number; y?: number }) => this.socketSpawnUnit(data, socket));
         });
+    }
+
+    private triggerTakeEconomyDamage({ buildingGuid, amount, economyGuid }: TTakeEconomyDamage): boolean {
+        const sanitizedAmount = Math.max(0, amount);
+
+        this.damagePeopleEconomy(economyGuid, buildingGuid, sanitizedAmount)
+            .catch(err => console.error('[ArmyManager] Ошибка отправки урона экономике:', err));
+
+        return true;
     }
 
     private triggerTakeDamage({ armyGuid, unitGuid, amount }: TTakeDamage): boolean {
@@ -195,7 +209,7 @@ class ArmyManager extends BaseManager {
         //     this.destroyArmy(guid);
         //     return;
         // }
-        
+
         // if (army && army.buildings.length === 0) {
         //     this.io.to(user.socketId).emit(GAME_OVER, this.answer.good({ message: 'Все здания разрушены' }));
         //     this.destroyArmy(guid);
@@ -247,6 +261,14 @@ class ArmyManager extends BaseManager {
         );
     }
 
+    private async damagePeopleEconomy(economyGuid: string, buildingGuid: string, amount: number): Promise<void> {
+        if (!economyGuid) return;
+        await this.send(
+            `${GLOBAL_CONFIG.PEOPLE_ECONOMY.URL}/damage`, // Кидаем напрямую на их эндпоинт /damage
+            { guid: buildingGuid, damage: amount, economyGuid }
+        );
+    }
+
     private destroyArmy(guid: string): void {
         const army = this.army[guid];
         if (army) {
@@ -256,7 +278,7 @@ class ArmyManager extends BaseManager {
         delete this.armyGuids[guid];
     }
 
-     private async eventStartGame({ guid, map, buildings, mapGuid, peopleArmyGuid }: TStartGame): Promise<void> {
+    private async eventStartGame({ guid, map, buildings, mapGuid, peopleArmyGuid, peopleEconomyGuid }: TStartGame): Promise<void> {
         const user = this.mediator.get(this.TRIGGERS.GET_USER_BY_GUID, guid);
         if (!user) return;
 
@@ -283,7 +305,7 @@ class ArmyManager extends BaseManager {
             finalBuildings = Army.generateDefensiveLayout(resolvedMap, this.common);
         }
 
-        this.armyGuids[guid] = { peopleArmyGuid: peopleArmyGuid ?? null };
+        this.armyGuids[guid] = { peopleArmyGuid: peopleArmyGuid ?? null, peopleEconomyGuid: peopleEconomyGuid ?? null };
         this.army[guid] = new Army({
             mapGuid,
             map: resolvedMap,
@@ -293,6 +315,16 @@ class ArmyManager extends BaseManager {
             callbacks: {
                 update: (guid: string, armyState: TArmyState) => this.updateArmyCallback(guid, armyState),
                 takeDamage: (unitGuid: string, amount: number) => this.damagePeopleUnit(guid, unitGuid, amount),
+                takeEconomyDamage: (buildingGuid: string, amount: number) => {
+                    const guids = this.armyGuids[guid];
+                    if (guids?.peopleEconomyGuid) {
+                        this.triggerTakeEconomyDamage({
+                            buildingGuid,
+                            amount,
+                            economyGuid: guids.peopleEconomyGuid
+                        });
+                    }
+                }
             }
         });
 

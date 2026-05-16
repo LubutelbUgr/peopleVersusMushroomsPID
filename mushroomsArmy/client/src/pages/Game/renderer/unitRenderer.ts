@@ -15,6 +15,13 @@ const MAX_HP: Record<string, number> = {
   vzryvomor: 70,
   sporovaya_bashnya: 160,
   pizdoglyad: 2,
+
+  // Здания экономики людей
+  smallgenerator: 100,  
+  mine: 100,            
+  pipe: 100,            
+  driller: 100,         
+  barracks: 200,        
 };
 
 const ECONOMY_BUILDING_CONFIG: Record<string, { label: string; color: string }> = {
@@ -24,7 +31,12 @@ const ECONOMY_BUILDING_CONFIG: Record<string, { label: string; color: string }> 
   big_bioreactor: { label: 'БР', color: '#3b82f6' },
   fat_barrel: { label: 'Б', color: '#f97316' },
   iron_barrel: { label: 'Ж', color: '#6b7280' },
-  mine: { label: 'Ш', color: '#eab308' },
+
+  // Новые экономические здания людей
+  mine: { label: 'Ш', color: '#eab308' },            // Шахта (Жёлтый)
+  smallgenerator: { label: 'Гн', color: '#3b82f6' },  // Генератор (Синий)
+  pipe: { label: 'Тр', color: '#94a3b8' },            // Труба (Серый)
+  driller: { label: 'Бр', color: '#10b981' },         // Бур (Зелёный)
 };
 
 export const getMaxHp = (type: string): number => MAX_HP[type] ?? 100;
@@ -257,7 +269,7 @@ export function drawBuildings(
         ctx.font = `bold ${Math.max(10, side * 0.42)}px Arial`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('Р’', cx, cy);
+        ctx.fillText('В', cx, cy);
         barWidth = side;
         barX = cx - barWidth / 2;
         barY = cy - half - 6;
@@ -293,7 +305,7 @@ export function drawBuildings(
         ctx.font = `bold ${Math.max(9, Math.min(cellW, cellH) * 0.32)}px Arial`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('РЎР‘', px + pw / 2, py + ph / 2);
+        ctx.fillText('СБ', px + pw / 2, py + ph / 2);
       }
 
       ctx.fillStyle = '#d32f2f';
@@ -305,10 +317,10 @@ export function drawBuildings(
 
     const economyBuilding = ECONOMY_BUILDING_CONFIG[building.type];
     if (economyBuilding) {
-      const bw = cellW * 1.4;
-      const bh = cellH * 1.4;
-      const bOffX = bx - bw / 2 + cellW / 2;
-      const bOffY = by - bh / 2 + cellH / 2;
+      const bw = cellW * (sx === 1 ? 1.4 : sx);
+      const bh = cellH * (sy === 1 ? 1.4 : sy);
+      const bOffX = bx - bw / 2 + (cellW * sx) / 2;
+      const bOffY = by - bh / 2 + (cellH * sy) / 2;
 
       ctx.fillStyle = economyBuilding.color;
       ctx.fillRect(bOffX, bOffY, bw, bh);
@@ -321,7 +333,7 @@ export function drawBuildings(
       ctx.font = `bold ${Math.max(8, cellW * 0.32)}px Arial`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(economyBuilding.label, bx + cellW / 2, by + cellH / 2);
+      ctx.fillText(economyBuilding.label, bx + (cellW * sx) / 2, by + (cellH * sy) / 2);
 
       ctx.fillStyle = '#d32f2f';
       ctx.fillRect(bOffX, bOffY - 6, bw, 4);
@@ -330,10 +342,10 @@ export function drawBuildings(
       return;
     }
 
-    const bw = cellW * 1.4;
-    const bh = cellH * 1.4;
-    const bOffX = bx - bw / 2 + cellW / 2;
-    const bOffY = by - bh / 2 + cellH / 2;
+    const bw = cellW * (sx === 1 ? 1.4 : sx);
+    const bh = cellH * (sy === 1 ? 1.4 : sy);
+    const bOffX = bx - bw / 2 + (cellW * sx) / 2;
+    const bOffY = by - bh / 2 + (cellH * sy) / 2;
     ctx.fillStyle = '#c0392b';
     ctx.fillRect(bOffX, bOffY, bw, bh);
     ctx.strokeStyle = '#7b241c';
@@ -343,8 +355,8 @@ export function drawBuildings(
     ctx.font = `bold ${Math.max(8, cellW * 0.4)}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const label = building.type === 'house' ? 'Р”' : building.type === 'barracks' ? 'Р‘' : 'Рў';
-    ctx.fillText(label, bx + cellW / 2, by + cellH / 2);
+    const label = building.type === 'house' ? 'Д' : building.type === 'barracks' ? 'Б' : 'Т';
+    ctx.fillText(label, bx + (cellW * sx) / 2, by + (cellH * sy) / 2);
     ctx.fillStyle = '#d32f2f';
     ctx.fillRect(bOffX, bOffY - 6, bw, 4);
     ctx.fillStyle = '#4caf50';
