@@ -22,6 +22,7 @@ const MAX_HP: Record<string, number> = {
   vzryvomor: 70,
   sporovaya_bashnya: 160,
   pizdoglyad: 2,
+  larva: 1,
 };
 
 const ECONOMY_BUILDING_CONFIG: Record<string, { label: string; color: string; spriteNo?: number }> = {
@@ -88,6 +89,45 @@ function drawFallbackEconomyBuilding(
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(label, centerX, centerY);
+}
+
+function drawEconomyUnit(
+  ctx: CanvasRenderingContext2D,
+  unit: Unit,
+  cellW: number,
+  cellH: number
+): void {
+  const spriteNo = unit.type === 'larva' ? 10 : undefined;
+
+  if (spriteNo === undefined || !isImageDrawable(economySpritesImg)) {
+    const cx = unit.x * cellW + cellW / 2;
+    const cy = unit.y * cellH + cellH / 2;
+
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, cellW * 0.35, cellH * 0.22, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#9ca3af';
+    ctx.fill();
+
+    ctx.strokeStyle = '#4b5563';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    return;
+  }
+
+  const { sx, sy, size } = getEconomySpriteFrame(spriteNo);
+
+  ctx.drawImage(
+    economySpritesImg,
+    sx,
+    sy,
+    size,
+    size,
+    unit.x * cellW,
+    unit.y * cellH,
+    cellW,
+    cellH
+  );
 }
 
 const pizdoglyadImages: { idle: HTMLImageElement; walk: HTMLImageElement } = {
@@ -503,12 +543,26 @@ export function drawUnits(
   units: Unit[],
   cellW: number,
   cellH: number,
-  circularVisibilityMask: boolean[][]
+  circularVisibilityMask: boolean[][],
+  economyUnits: Unit[] = []
 ): void {
   const now = Date.now();
 
   updateChampignebExplosions(units, now);
   drawChampignebExplosions(ctx, cellW, cellH, now);
+
+  economyUnits.forEach(unit => {
+    if (unit.hp <= 0) return;
+
+    const ux = Math.floor(unit.x);
+    const uy = Math.floor(unit.y);
+
+    if (circularVisibilityMask[uy]?.[ux] !== true) return;
+
+    if (unit.type === 'larva') {
+      drawEconomyUnit(ctx, unit, cellW, cellH);
+    }
+  });
 
   units.forEach(unit => {
     if (unit.hp <= 0) return;

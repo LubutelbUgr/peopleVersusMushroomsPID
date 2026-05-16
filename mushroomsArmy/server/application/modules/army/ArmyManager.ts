@@ -39,6 +39,7 @@ type TVisibleEntity = {
     x: number;
     y: number;
     hp?: number;
+    role?: string;
     size?: number;
     sizeX?: number;
     sizeY?: number;
@@ -266,11 +267,26 @@ class ArmyManager extends BaseManager {
 
         const visibleUnits = visibility?.units ?? [];
         const visibleBuildings = visibility?.buildings ?? [];
-
+        
+        const economyUnits: TBuildingInput[] = visibleUnits
+            .filter(unit => unit.role === 'mushroomsEconomy')
+            .map(unit => ({
+                guid: unit.guid,
+                type: unit.type,
+                x: unit.x,
+                y: unit.y,
+                hp: unit.hp ?? 1,
+                visibility: unit.visibility,
+            }));
+        
+        if (economyUnits.length > 0) {
+            army.setEconomyUnits(economyUnits);
+        }
+        
         const visibleEnemies: TVisibleEntity[] = [
             ...visibleUnits,
             ...visibleBuildings,
-        ];
+        ].filter(entity => entity.role !== 'mushroomsEconomy');
 
         const economyBuildings: TBuildingInput[] = visibleBuildings.map(building => ({
             guid: building.guid,
