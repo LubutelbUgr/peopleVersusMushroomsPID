@@ -73,7 +73,8 @@ class Unit {
     private lastTargetTileY: number;
 
     private decisionAccumulator: number = 0;
-    private readonly DECISION_INTERVAL: number = 0.5; 
+    protected DECISION_INTERVAL: number = 0.5;
+    protected lastDeltaTime: number = 0;
 
     constructor({guid, type, x, y, hp, speed, attackRange, visibility, projectiles = []}: TUnitOptions) {
         this.guid = guid;
@@ -102,6 +103,7 @@ class Unit {
         if (!this.isAlive) return;
 
         this.enemies = enemies;
+        this.lastDeltaTime = deltaTime;
         
         this.decisionAccumulator += deltaTime;
         

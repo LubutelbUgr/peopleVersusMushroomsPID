@@ -12,6 +12,10 @@ import { coerceTerrainCell } from './fogOfWar';
 import { drawTerrainCell, drawGridFogAware } from './terrainRenderer';
 import { drawBuildings, drawUnits, drawProjectileLayer } from './unitRenderer';
 
+interface IInitializableCanvas extends HTMLCanvasElement {
+    __cameraInitialized?: boolean;
+}
+
 export { preloadFogWarTextures };
 
 export function drawGame(
@@ -31,9 +35,9 @@ export function drawGame(
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  if (!(canvas as any).__cameraInitialized) {
+  if (!(canvas as IInitializableCanvas).__cameraInitialized) {
     initCameraListeners(canvas);
-    (canvas as any).__cameraInitialized = true;
+    (canvas as IInitializableCanvas).__cameraInitialized = true;
   }
 
   if (!state) return;
