@@ -1,4 +1,4 @@
-const Unit = require("./Entity");
+const Unit = require("./Unit");
 
 class Building extends Unit {
     constructor({ x, y, type, guid, role, size = 1, visibility = 1 }) {
