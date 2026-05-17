@@ -39,7 +39,7 @@ class Map {
     get() {
         return {
             buildings: this.buildings.map(building => building),
-            units: this.buildings.map(unit => unit),
+            units: this.units.map(unit => unit),
         };
     }
 

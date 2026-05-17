@@ -12,6 +12,9 @@ class GameManager extends BaseManager {
 		super(options);
 		// data
 		this.economies = {};
+
+		// связка: peopleEconomyGuid -> mushroomsArmyGuid
+		this.mushroomsArmyGuidByPeopleEconomyGuid = {};
 		// sockets
 		if (!this.io) return;
 		this.io.on('connection', (socket) => { });
@@ -25,24 +28,46 @@ class GameManager extends BaseManager {
 
 	/* PRIVATE */
 	callbackUpdate(data) {
+		// Economy.get() возвращает:
+		// { guid: economyGuid, buildings: [...], map: mapGuid }
+		const economyGuid = data?.guid;
+		const mapGuid = data?.map;
+		const buildings = data?.buildings ?? [];
 
-		const { mapGuid } = data.guids;
-		const guid = data.guids.mushroomsEconomy;
-		const user = this.mediator.get(this.TRIGGERS.GET_USER_BY_GUID, guid);
+		if (!economyGuid || !mapGuid) return;
+
+		const user = this.mediator.get(this.TRIGGERS.GET_USER_BY_GUID, economyGuid);
 		if (!user) {
 			console.log('User отсутствует!, callbackUpdate не работает! \n map guid: ', mapGuid);
 			return;
 		}
 
 		// выплюнуть сообщение в карту
-		this.updateBuildings(data.guids, this.economies[guid].getUpdatedBuildings());
-		// формате отдавать в сервис карты
-		// получить ответ
+		this.updateBuildings(mapGuid, economyGuid, buildings);
+
+		// параллельно сообщаем mushromsArmy об economy-зданиях людей,
+		// чтобы они попали в Army.economyBuildings и отрисовались на поле
+		const mushroomsArmyGuid = this.mushroomsArmyGuidByPeopleEconomyGuid?.[economyGuid];
+		if (mushroomsArmyGuid) {
+			// Нормализация type к lowercase-ключам клиента выполняется внутри updateBuildings
+			// но здесь payload должен совпасть с expected TBuildingInput фронта.
+			// reuse logic: прогоняем через updateBuildings normalization в отдельной функции нельзя,
+			// поэтому нормализуем здесь в минимальном виде.
+			const normalizedBuildings = (buildings ?? []).map(b => {
+				const t = b?.type;
+				if (typeof t !== 'string') return b;
+				return { ...b, type: t.toLowerCase().replace('small_generator', 'smallgenerator') };
+			});
+
+			this.sendToMushroomsArmy('/updateEconomyBuildings', {
+				armyGuid: mushroomsArmyGuid,
+				buildings: normalizedBuildings,
+			});
+		}
+
 		// запросить рельеф
-		this.getRelief(data.map, guid, mapGuid);
-		// запросить видимость
-		// запросить ресурсы под жопками рабочих
-		// обновить рельеф и видимость у себя в Экномике
+		this.getRelief(mapGuid, economyGuid, mapGuid);
+
 		// ответить на СВОЙ клиент
 		this.io.to(user.socketId).emit(
 			CONFIG.SOCKET.UPDATE_SCENE,
@@ -60,7 +85,13 @@ class GameManager extends BaseManager {
 		console.log('EVENT START GAME');
 		//console.log(guids);
 		//console.log(SET_SERVICES_GUIDS);
-		
+
+		// сохраняем связку peopleEconomyGuid -> mushroomsArmyGuid
+		// (из start payload: в guids приходит и peopleEconomy, и mushroomsArmy)
+		if (guids?.peopleEconomy && guids?.mushroomsArmy) {
+			this.mushroomsArmyGuidByPeopleEconomyGuid[guids.peopleEconomy] = guids.mushroomsArmy;
+		}
+
 		if (guids.mushroomsEconomy) {
 			const guid = guids.mushroomsEconomy;
 			const user = this.mediator.get(this.TRIGGERS.GET_USER_BY_GUID, guid);
@@ -113,13 +144,41 @@ class GameManager extends BaseManager {
 
 	}
 
-	updateBuildings(guids, buildings = []) {
+	updateBuildings(mapGuid, peopleEconomyGuid, buildings = []) {
 		if (buildings.length === 0) return;
+
+		// Нормализуем type к ключам, которые ожидает mushromsArmy (unitRenderer.ts / ECONOMY_BUILDING_CONFIG)
+		// Примеры ожидаемых ключей: mine, smallgenerator, pipe, driller, (и fallback: barracks)
+		const typeMap = {
+			PIPE: 'pipe',
+			BARRACKS: 'barracks',
+			SMALL_GENERATOR: 'smallgenerator',
+			DRILLER: 'driller',
+			MINE: 'mine',
+		};
+
+		const normalizedBuildings = buildings.map(b => {
+			const t = b?.type;
+
+			if (typeof t !== 'string') return b;
+
+			if (typeMap[t]) return { ...b, type: typeMap[t] };
+
+			// Если формат отличается (например already lowercase/с другими регистрами) — приводим к lower-case
+			const lower = t.toLowerCase();
+
+			// Частный случай: SMALL GENERATOR могли прийти как small_generator или SMALL_GENERATOR
+			if (lower === 'small_generator') return { ...b, type: 'smallgenerator' };
+
+			// Базовый fallback
+			return { ...b, type: lower };
+		});
+
 		this.sendToMap(GLOBAL_CONFIG.URLS.UPDATE_BUILDINGS, {
-			mapGuid: guids.spectator,
-			userGuid: guids.mushroomsEconomy,
-			buildings: buildings,
-		})
+			mapGuid,
+			userGuid: peopleEconomyGuid,
+			buildings: normalizedBuildings,
+		});
 	}
 
 	spawnArmyUnit(data) { //data = {unitType, x, y, armyGuid}

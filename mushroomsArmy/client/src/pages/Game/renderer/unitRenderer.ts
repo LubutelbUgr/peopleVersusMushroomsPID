@@ -218,6 +218,24 @@ export function drawBuildings(
   cellH: number,
   circularVisibilityMask: boolean[][]
 ): void {
+  // DEBUG: чтобы понять, какие buildings реально приходят с сервера
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (drawBuildings as any).__dbgTs ??= 0;
+  const nowTs = Date.now();
+  if (nowTs - (drawBuildings as any).__dbgTs > 2000) {
+    (drawBuildings as any).__dbgTs = nowTs;
+    // eslint-disable-next-line no-console
+    console.log('[drawBuildings][sample]', (state.buildings ?? []).slice(0, 25).map(b => ({
+      guid: b.guid,
+      type: b.type,
+      x: b.x,
+      y: b.y,
+      hp: b.hp,
+      sizeX: b.sizeX,
+      sizeY: b.sizeY,
+    })));
+  }
+
   const activeVzryvomorGuids = new Set(
     (state.buildings ?? [])
       .filter(b => b.type === 'vzryvomor' && b.hp > 0)
