@@ -123,13 +123,7 @@ class Unit {
     }
     
     private makeDecision(enemies: Unit[], map: TMap): void {
-        let nearestEnemy: Unit | null = null;
-        let nearestDistance: number = Infinity;
-
-        // Leash-фильтр: если у юнита есть конечный leashRadius и назначенный
-        // formationTarget, игнорируем врагов дальше leashRadius от слота. Это
-        // не даёт champigneb рассыпаться по карте за случайными целями вдали
-        // от своего поста.
+        // Leash-фильтр: не даёт champigneb рассыпаться по карте вдали от слота.
         const leashOk = (enemy: Unit): boolean => {
             if (!this.formationTarget || this.leashRadius === Infinity) return true;
             const dx = enemy.x - this.formationTarget.x;
@@ -137,44 +131,30 @@ class Unit {
             return (dx * dx + dy * dy) <= this.leashRadius * this.leashRadius;
         };
 
-        for (const enemy of enemies) {
-            if (!enemy.isAlive) continue;
-            if (!leashOk(enemy)) continue;
+        // Один проход: ищем ближайшего с LoS и ближайшего без (fallback).
+        let nearestLoS: Unit | null = null;
+        let nearestLoSDist = Infinity;
+        let nearestAny: Unit | null = null;
+        let nearestAnyDist = Infinity;
 
+        for (const enemy of enemies) {
+            if (!enemy.isAlive || !leashOk(enemy)) continue;
             const dx = enemy.x - this.x;
             const dy = enemy.y - this.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-
-            if (distance < nearestDistance && this.hasLineOfSight(this.x, this.y, enemy.x, enemy.y, map)) {
-                nearestDistance = distance;
-                nearestEnemy = enemy;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < nearestAnyDist) { nearestAnyDist = dist; nearestAny = enemy; }
+            if (dist < nearestLoSDist && this.hasLineOfSight(this.x, this.y, enemy.x, enemy.y, map)) {
+                nearestLoSDist = dist; nearestLoS = enemy;
             }
         }
 
-        // Нет видимого врага — ищем ближайшего без LoS (просто идём к нему через pathfinding)
-        if (!nearestEnemy) {
-            for (const enemy of enemies) {
-                if (!enemy.isAlive) continue;
-                if (!leashOk(enemy)) continue;
-                const dx = enemy.x - this.x;
-                const dy = enemy.y - this.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                if (distance < nearestDistance) {
-                    nearestDistance = distance;
-                    nearestEnemy = enemy;
-                }
-            }
-        }
-
-        if (nearestEnemy) {
-            this.onEnemyFound(nearestEnemy, nearestDistance);
+        const target = nearestLoS ?? nearestAny;
+        if (target) {
+            this.onEnemyFound(target, nearestLoS ? nearestLoSDist : nearestAnyDist);
         } else if (this.formationTarget) {
-            // Нет врагов — становимся в назначенный слот формации
             this.targetX = this.formationTarget.x;
             this.targetY = this.formationTarget.y;
         } else {
-            // Нет ни врагов, ни слота — стоим на месте. (Раньше тут было (50,50),
-            // что в фазе Defense уводило юнитов без слота в центр карты.)
             this.targetX = this.x;
             this.targetY = this.y;
         }
@@ -225,23 +205,24 @@ class Unit {
 
         this.calculateUnitPath(map);
 
-        if (this.path.length === 0) return;
-
-        // Двигаемся к центру следующей клетки пути
-        const next = this.path[0];
-        const dx = (next.x + 0.5) - this.x;
-        const dy = (next.y + 0.5) - this.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        if (distance < 0.1) {
-            this.path.shift();
-            return;
+        // Цикл позволяет быстрым юнитам (Pizdoglyad) пройти несколько точек пути за один тик.
+        let remaining = this.speed * deltaTime;
+        while (remaining > 0 && this.path.length > 0) {
+            const next = this.path[0];
+            const dx = (next.x + 0.5) - this.x;
+            const dy = (next.y + 0.5) - this.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist <= remaining) {
+                this.x = next.x + 0.5;
+                this.y = next.y + 0.5;
+                this.path.shift();
+                remaining -= dist;
+            } else {
+                this.x += (dx / dist) * remaining;
+                this.y += (dy / dist) * remaining;
+                remaining = 0;
+            }
         }
-
-        const step = this.speed * deltaTime;
-        const move = Math.min(step, distance);
-        this.x += (dx / distance) * move;
-        this.y += (dy / distance) * move;
     }
 
     /** Строит числовую сетку для EasyStar: null → BLOCKED_TILE */

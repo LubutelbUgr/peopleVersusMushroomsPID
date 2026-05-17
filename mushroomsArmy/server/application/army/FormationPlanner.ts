@@ -17,16 +17,19 @@ export type FormationPlannerOptions = {
 
 const WALKABLE_TILES = new Set<number>([0, 2]);
 
-// Параметры решётки — см. spec/formation.md §2.1.
-// SLOT_OFFSET = SLOT_STEP/2 даёт треугольную упаковку.
-const SLOT_STEP          = 4;
-const L_STEP             = 3;
-const SLOT_OFFSET        = 2;
+// Параметры решётки: SLOT_OFFSET = SLOT_STEP/2 даёт треугольную упаковку.
+const SLOT_STEP          = 2;
+const L_STEP             = 2;   // расстояние между L-кольцами
+const SLOT_OFFSET        = 1;
 const MIN_D              = 1;
 const WALL_TRIGGER_RINGS = 5;
+// Схлопывание: кольцо сжимается только если юнитов < 60% ёмкости меньшего радиуса.
+const SHRINK_THRESHOLD   = 0.6;
+// Кулдаун между схлопываниями (тиков × 200 мс). 10 тиков = 2 сек.
+const SHRINK_COOLDOWN    = 10;
 
-// Авторитетная семантика — в spec/formation.md (L-кольца вокруг угла базы,
-// 3 активные L подряд, type-rank, wave-fill).
+// Авторитетная семантика: L-кольца вокруг угла базы,
+// 3 активные L подряд, type-rank, wave-fill.
 export class FormationPlanner {
     private readonly _center: Readonly<{ x: number; y: number }>;
     private readonly map: TMap;
@@ -36,6 +39,10 @@ export class FormationPlanner {
     private readonly mapCols: number;
 
     private lastWallRingIdx: number = 0;
+    // Текущий радиус формации (d_start). Расширяется немедленно при нехватке
+    // слотов, схлопывается постепенно с кулдауном — без рывков при потерях.
+    private currentDStart: number = MIN_D;
+    private contractionCooldown: number = 0;
     private lastBuiltSlots: Record<FormationUnitType, FormationSlotPos[]> = {
         sporomet:   [],
         eblekar:    [],
@@ -78,19 +85,33 @@ export class FormationPlanner {
         }
 
         const maxD = Math.max(this.baseWallTopY, this.baseWallLeftX);
-        let dStart = MIN_D;
-        let innerCells = this.lShellCells(dStart);
-        let middleCells = this.lShellCells(dStart + L_STEP);
-        let outerCells = this.lShellCells(dStart + 2 * L_STEP);
-        while (innerCells.length + middleCells.length + outerCells.length < total) {
-            // outer L должна оставаться в карте: apex outer = max(.) - d_start - 2·L_STEP
-            // должен быть ≥ 0.
-            if (dStart + 2 * L_STEP >= maxD) break;
-            dStart += L_STEP;
-            innerCells = this.lShellCells(dStart);
-            middleCells = this.lShellCells(dStart + L_STEP);
-            outerCells = this.lShellCells(dStart + 2 * L_STEP);
+
+        // Ёмкость трёх активных L при данном d_start.
+        const capacityAt = (d: number): number =>
+            this.lShellCells(d).length +
+            this.lShellCells(d + L_STEP).length +
+            this.lShellCells(d + 2 * L_STEP).length;
+
+        // Расширение: немедленно, пока юниты не помещаются.
+        while (capacityAt(this.currentDStart) < total && this.currentDStart + 2 * L_STEP < maxD) {
+            this.currentDStart += L_STEP;
         }
+
+        // Схлопывание: одно кольцо за раз с кулдауном — без тряски при потерях.
+        if (this.contractionCooldown > 0) {
+            this.contractionCooldown--;
+        } else if (this.currentDStart > MIN_D) {
+            const smallerD = Math.max(MIN_D, this.currentDStart - L_STEP);
+            if (total <= Math.floor(capacityAt(smallerD) * SHRINK_THRESHOLD)) {
+                this.currentDStart = smallerD;
+                this.contractionCooldown = SHRINK_COOLDOWN;
+            }
+        }
+
+        const dStart = this.currentDStart;
+        const innerCells = this.lShellCells(dStart);
+        const middleCells = this.lShellCells(dStart + L_STEP);
+        const outerCells = this.lShellCells(dStart + 2 * L_STEP);
 
         type LSpec = {
             cells: FormationSlotPos[];

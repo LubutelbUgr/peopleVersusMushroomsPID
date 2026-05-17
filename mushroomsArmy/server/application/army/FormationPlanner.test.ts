@@ -96,7 +96,7 @@ describe('FormationPlanner — 3 активные L подряд, type-rank cons
     });
 
     describe('3 активные L подряд', () => {
-        it('малый армия (3+3+3): d_start = 1, формация занимает {1, 4, 7}', () => {
+        it('малый армия (3+3+3): d_start = 1, формация занимает {1, 3, 5}', () => {
             const opts = standardOpts();
             const p = new FormationPlanner(opts);
             const slots = p.updateForCounts({ sporomet: 3, eblekar: 3, champigneb: 3 });
@@ -104,22 +104,22 @@ describe('FormationPlanner — 3 активные L подряд, type-rank cons
             const shells = distinctShells(all, opts.baseWallTopY, opts.baseWallLeftX);
             // Все слоты на одной из 3 активных L
             for (const s of shells) {
-                expect([1, 4, 7]).toContain(s);
+                expect([1, 3, 5]).toContain(s);
             }
         });
 
         it('армия > capacity 3-L при d_start=1: d_start сдвигается наружу', () => {
             const opts = standardOpts();
             const p = new FormationPlanner(opts);
-            // 30+30+30 = 90 юнитов. d_start=1 вместит ~27. Должен сдвинуться.
+            // 30+30+30 = 90 юнитов. d_start=1 вмещает ~52. Должен сдвинуться.
             const slots = p.updateForCounts({ sporomet: 30, eblekar: 30, champigneb: 30 });
             const all = [...slots.sporomet, ...slots.eblekar, ...slots.champigneb];
             const shells = distinctShells(all, opts.baseWallTopY, opts.baseWallLeftX);
-            // ровно 3 уникальных shell с шагом 3
+            // ровно 3 уникальных shell с шагом 2
             expect(shells.length).toBeLessThanOrEqual(3);
             if (shells.length === 3) {
-                expect(shells[1] - shells[0]).toBe(3);
-                expect(shells[2] - shells[1]).toBe(3);
+                expect(shells[1] - shells[0]).toBe(2);
+                expect(shells[2] - shells[1]).toBe(2);
             }
             // Inner shell > 1 (сдвинулся)
             expect(shells[0]).toBeGreaterThan(1);
@@ -154,7 +154,7 @@ describe('FormationPlanner — 3 активные L подряд, type-rank cons
             const all = [...slots.sporomet, ...slots.eblekar, ...slots.champigneb];
             const shells = distinctShells(all, opts.baseWallTopY, opts.baseWallLeftX);
             const dStart = shells[0];
-            const middle = dStart + 3;
+            const middle = dStart + 2;
             for (const s of slots.sporomet) {
                 const sh = shellDist(s, opts.baseWallTopY, opts.baseWallLeftX);
                 expect([dStart, middle]).toContain(sh);
@@ -164,15 +164,15 @@ describe('FormationPlanner — 3 активные L подряд, type-rank cons
         it('champigneb может быть на любой из 3 активных L', () => {
             const opts = standardOpts();
             const p = new FormationPlanner(opts);
-            // 9 champ — d_start=1 вмещает (cap=27). Активные shells={1,4,7}.
+            // 9 champ — d_start=1 вмещает (~52 слотов). Активные shells={1,3,5}.
             const slots = p.updateForCounts({ champigneb: 9 });
             const shells = distinctShells(
                 slots.champigneb, opts.baseWallTopY, opts.baseWallLeftX);
-            // Все слоты на одной из {1,4,7}
-            expect(shells.every(s => s === 1 || s === 4 || s === 7)).toBe(true);
+            // Все слоты на одной из {1,3,5}
+            expect(shells.every(s => s === 1 || s === 3 || s === 5)).toBe(true);
             // Champ priority в inner=3rd, middle=2nd, outer=1st. Inner-first:
-            // inner заполняется первым (ebl=sporo=0, champ доливает). 7 inner
-            // слотов → 7 champ. 2 champ → middle (priority [sporo,champ], sporo=0).
+            // inner заполняется первым (ebl=sporo=0, champ доливает).
+            // ~15 inner слотов — все 9 champ вмещаются на inner.
             expect(slots.champigneb.length).toBe(9);
         });
 
@@ -203,21 +203,21 @@ describe('FormationPlanner — 3 активные L подряд, type-rank cons
             }
             // sporo может оказаться на inner (mixing) или middle. Главное — не дальше.
             for (const s of slots.sporomet) {
-                expect(shellDist(s, opts.baseWallTopY, opts.baseWallLeftX)).toBeLessThanOrEqual(4);
+                expect(shellDist(s, opts.baseWallTopY, opts.baseWallLeftX)).toBeLessThanOrEqual(3);
             }
         });
 
         it('outer L: только champigneb (rank блокирует sporo/ebl)', () => {
             const opts = standardOpts();
             const p = new FormationPlanner(opts);
-            // Армия маленькая (3+3+3), d_start=1, outer L = L(d=7).
-            // На L(d=7) могут только champ. Проверим.
+            // Армия маленькая (3+3+3), d_start=1, outer L = L(d=5).
+            // На L(d=5) могут только champ. Проверим.
             const slots = p.updateForCounts({ sporomet: 3, eblekar: 3, champigneb: 3 });
-            const champOnShell7 = slots.champigneb.filter(c =>
-                shellDist(c, opts.baseWallTopY, opts.baseWallLeftX) === 7);
+            const champOnShell5 = slots.champigneb.filter(c =>
+                shellDist(c, opts.baseWallTopY, opts.baseWallLeftX) === 5);
             // У outer L приоритет [champigneb] — ebl/sporo туда не попадают.
             const ebsOrSporoOnOuter = [...slots.eblekar, ...slots.sporomet].filter(s =>
-                shellDist(s, opts.baseWallTopY, opts.baseWallLeftX) === 7);
+                shellDist(s, opts.baseWallTopY, opts.baseWallLeftX) === 5);
             expect(ebsOrSporoOnOuter.length).toBe(0);
             // Champ inner-first: outer заполняется ПОСЛЕДНИМ, поэтому при 3 champ
             // и mixing на inner/middle где champ ниже priority — champ может попасть
