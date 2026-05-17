@@ -75,29 +75,23 @@ class Map {
 
     getVisibleEntities(searchedEntities, searchingEntities) {
         const visibleEntities = [];
-
         for (const entity of searchedEntities) {
             const pos = entity.getPos();
-
-            for (const searchingEntity of searchingEntities) {
+            for (const searchingEntity in searchingEntities) {
                 const vis = searchingEntity.getVisibleRange();
-
-                if (
-                    (
-                        (vis.x[0] <= pos.x[0] && pos.x[0] <= vis.x[1]) ||
-                        (vis.x[0] <= pos.x[1] && pos.x[1] <= vis.x[1])
-                    ) &&
-                    (
-                        (vis.y[0] <= pos.y[0] && pos.y[0] <= vis.y[1]) ||
-                        (vis.y[0] <= pos.y[1] && pos.y[1] <= vis.y[1])
-                    )
-                ) {
+                if ((
+                    vis.x[0] <= pos.x[0] && pos.x[0] <= vis.x[1] ||
+                    vis.x[0] <= pos.x[1] && pos.x[1] <= vis.x[1]
+                ) && (
+                        vis.y[0] <= pos.y[0] && pos.y[0] <= vis.y[1] ||
+                        vis.y[0] <= pos.y[1] && pos.y[1] <= vis.y[1]
+                    ));
+                {
                     visibleEntities.push(entity);
                     break;
                 }
             }
         }
-
         return visibleEntities;
     }
 
@@ -108,7 +102,6 @@ class Map {
         const buildings = [];
         const roleEntities = [];
         const notRoleEntities = [];
-
         [...this.units, ...this.buildings].forEach(entity => {
             if (entity.role === role) {
                 roleEntities.push(entity);
@@ -116,17 +109,14 @@ class Map {
                 notRoleEntities.push(entity);
             }
         });
-
         const visibleEntities = this.getVisibleEntities(notRoleEntities, roleEntities);
-
         visibleEntities.forEach(entity => {
-            if (entity instanceof Building) {
-                buildings.push(entity.get());
-            } else if (entity instanceof Unit) {
+            if (entity instanceof Unit) {
                 units.push(entity.get());
+            } else {
+                buildings.push(entity.get());
             }
         });
-
         return { units, buildings };
     }
 
@@ -163,16 +153,16 @@ class Map {
     }
 
     updateBuilding(building) {
-        // ищем здание по гуиду
+        // ищем юнита по гуиду
         const buildingIndex = this.buildings.findIndex(elem => building.guid === elem.guid);
-        const newBuilding = new Building(building);
-
         if (buildingIndex + 1) {
-            // если нашлось - обновляем
-            this.buildings[buildingIndex] = newBuilding;
+            // если нашлось - удаляем
+            this.buildings.splice(buildingIndex, 1);
         } else {
             // не нашли - добавляем
-            this.buildings.push(newBuilding);
+            this.buildings.push(
+                new Building(building)
+            );
         }
     }
 

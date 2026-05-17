@@ -16,11 +16,8 @@ export type TBuildingInput = {
     y: number;
     hp?: number;
     attackRange?: number;
-    size?: number;
     sizeX?: number;
     sizeY?: number;
-    level?: number;
-    visibility?: number;
 };
 
 export type TBuildingState = {
@@ -54,7 +51,6 @@ export type TArmyState = {
     map: TMap;
     units: TUnitState[];
     buildings: TBuildingState[];
-    economyUnits: TBuildingInput[];
     slimePuddles: TSlimePuddle[];
     projectiles: TProjectile[];
 }
@@ -68,8 +64,6 @@ export class Army {
     public enemyUnits: Unit[] = [];
     public enemyBuildings: TBuildingInput[] = [];
     public economyBuildings: TBuildingInput[] = [];
-    public economyUnits: TBuildingInput[] = [];
-    
     public projectiles: TProjectile[] = [];
     public callbacks: { update: (guid: string, data: TArmyState) => void; takeDamage?: (unitGuid: string, amount: number) => void };
     private intervalId: NodeJS.Timeout;
@@ -113,27 +107,7 @@ export class Army {
     }
 
     public setEconomyBuildings(buildings: TBuildingInput[]): void {
-        const buildingsByGuid = new Map(
-            this.economyBuildings.map(building => [building.guid, building])
-        );
-        
-        for (const building of buildings) {
-            buildingsByGuid.set(building.guid, building);
-        }
-        
-        this.economyBuildings = Array.from(buildingsByGuid.values());
-    }
-    
-    public setEconomyUnits(units: TBuildingInput[]): void {
-        const unitsByGuid = new Map(
-            this.economyUnits.map(unit => [unit.guid, unit])
-        );
-
-        for (const unit of units) {
-            unitsByGuid.set(unit.guid, unit);
-        }
-
-        this.economyUnits = Array.from(unitsByGuid.values());
+        this.economyBuildings = [...buildings];
     }
 
     /** Синхронизирует урон по proxy-цели с локальным списком зданий врага */
@@ -332,9 +306,8 @@ export class Army {
             buildings: [
                 ...this.buildings.map(b => b.getState()),
                 ...this.enemyBuildings.map(b => ({ ...b, hp: b.hp ?? 0 })),
-                ...this.economyBuildings.map(b => ({ ...b, hp: b.hp ?? 1 })),
+                ...this.economyBuildings.map(b => ({ ...b, hp: b.hp ?? 0 })),
             ],
-            economyUnits: this.economyUnits.map(u => ({ ...u, hp: u.hp ?? 1 })),
             slimePuddles: this.units
                 .filter(u => u.type === 'champigneb' && !u.isAlive)
                 .map(u => (u as unknown as Champigneb).slimePuddle),
