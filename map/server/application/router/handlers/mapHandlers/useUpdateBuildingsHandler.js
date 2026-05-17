@@ -2,7 +2,8 @@ const useUpdateBuildingsHandler = (mediator, answer, common) => {
     const { UPDATE_BUILDINGS_HANDLER } = mediator.getTriggerTypes();
 
     return (req, res) => {
-        const { mapGuid, userGuid, entities } = req.body;
+        const { mapGuid, userGuid } = req.body;
+        const entities = req.body.entities ?? req.body.buildings;
             if (!mapGuid || !userGuid || !entities) {
                 return res.json(answer.bad(242));
             }
@@ -11,7 +12,8 @@ const useUpdateBuildingsHandler = (mediator, answer, common) => {
                 return res.json(answer.bad(3001));
             }
 
-        res.json(answer.good(mediator.get(UPDATE_BUILDINGS_HANDLER, { mapGuid, userGuid, entities })));
+        const result = mediator.get(UPDATE_BUILDINGS_HANDLER, { mapGuid, userGuid, entities });
+        res.json(result?.result ? result : answer.good(result));
     }
 }
 

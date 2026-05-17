@@ -50,6 +50,7 @@ export type TArmyOptions = {
 export type TArmyState = {
     map: TMap;
     units: TUnitState[];
+    enemyUnits: TUnitState[];
     buildings: TBuildingState[];
     slimePuddles: TSlimePuddle[];
     projectiles: TProjectile[];
@@ -303,6 +304,7 @@ export class Army {
         return {
             map: this.map,
             units: this.units.map(u => u.getState()),
+            enemyUnits: this.enemyUnits.map(u => u.getState()),
             buildings: [
                 ...this.buildings.map(b => b.getState()),
                 ...this.enemyBuildings.map(b => ({ ...b, hp: b.hp ?? 0 })),

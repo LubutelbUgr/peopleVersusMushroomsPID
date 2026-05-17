@@ -73,7 +73,7 @@ class Army {
     }
 
     setVisibility({ units = [], buildings = [] } = {}) {
-        //this.enemyUnits = Array.isArray(units) ? units : [];
+        this.enemyUnits = Array.isArray(units) ? units : [];
         this.enemyBuildings = Array.isArray(buildings) ? buildings : [];
         this.updated = true;
     }
@@ -112,6 +112,7 @@ class Army {
         }
         unit.type = unitType;
         unit.damage = Number(stats.DAMAGE) || 1;
+        unit.maxHp = unit.hp;
 
         this.units.push(unit);
         this.setUnitsTarget();

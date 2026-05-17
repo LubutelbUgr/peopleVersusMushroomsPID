@@ -54,12 +54,16 @@ class Unit {
     get() {
         return {
             guid: this.guid,
+            type: this.type,
             x: this.x,
             y: this.y,
             hp: this.hp,
+            maxHp: this.maxHp ?? this.hp,
             speed: this.speed,
             range: this.range,
             visible: this.visible,
+            visibility: this.visible,
+            isAlive: !this.isDead(),
             targetX: this.targetX,
             targetY: this.targetY,
         };

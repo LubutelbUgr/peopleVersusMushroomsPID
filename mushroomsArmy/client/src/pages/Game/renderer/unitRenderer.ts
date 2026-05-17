@@ -1,4 +1,4 @@
-import { Unit, Projectile } from '../types';
+import { Unit, EnemyUnit, Projectile } from '../types';
 import { UNIT_SRCS, PIZDOGLYAD_SRCS, champignebExplImages, VZRYVOMOR_FRAME_SRCS, SPOROVAYA_BASHNYA_SRCS } from './assets';
 import { isImageDrawable, tryDrawImageScaled, getBuildingImage } from './buildingRenderer';
 import {
@@ -392,6 +392,44 @@ export function drawUnits(
       ctx.lineWidth = 1;
       ctx.stroke();
     }
+
+    const barWidth = radius * 1.8;
+    const barHeight = 5;
+    const barX = cx - barWidth / 2;
+    const barY = cy - radius - 5;
+    const hpPercent = Math.max(0, Math.min(1, unit.hp / getMaxHp(unit.type)));
+
+    ctx.fillStyle = '#d32f2f';
+    ctx.fillRect(barX, barY, barWidth, barHeight);
+    ctx.fillStyle = '#4caf50';
+    ctx.fillRect(barX, barY, barWidth * hpPercent, barHeight);
+  });
+}
+
+export function drawEnemyUnits(
+  ctx: CanvasRenderingContext2D,
+  units: EnemyUnit[],
+  cellW: number,
+  cellH: number,
+  circularVisibilityMask: boolean[][]
+): void {
+  units.forEach(unit => {
+    if (unit.hp <= 0) return;
+    const ux = Math.floor(unit.x);
+    const uy = Math.floor(unit.y);
+    if (circularVisibilityMask[uy]?.[ux] !== true) return;
+
+    const cx = unit.x * cellW + cellW / 2;
+    const cy = unit.y * cellH + cellH / 2;
+    const radius = Math.min(cellW, cellH) * 0.35;
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fillStyle = '#e53935';
+    ctx.fill();
+    ctx.strokeStyle = '#7f1d1d';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
 
     const barWidth = radius * 1.8;
     const barHeight = 5;

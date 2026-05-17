@@ -48,9 +48,12 @@ class ArmyManager extends BaseManager {
         if (!army?.mapGuid) {
             return;
         }
-        // послать в карту И в экономику изменение положения юнитов (просто послать юниты)
-        //...
-        // запросить видимость
+        await this.sendToMap(`${URLS.UPDATE_UNITS}`, {
+            mapGuid: army.mapGuid,
+            userGuid: guid,
+            entities: data?.units ?? army.get().units,
+        });
+
         const visibility = await this.sendToMap(`${URLS.GET_VISIBILITY}`, { mapGuid: army.mapGuid, userGuid: guid });
         if (visibility) {
             army.setVisibility(visibility);

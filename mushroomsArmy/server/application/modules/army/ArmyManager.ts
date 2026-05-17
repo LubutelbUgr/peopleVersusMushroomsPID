@@ -206,14 +206,14 @@ class ArmyManager extends BaseManager {
 
         // Отправляем юниты и здания на карту
         // карта читает поля units / buildings (см. useUpdateUnitsHandler.js / useUpdateBuildingsHandler.js)
-        await this.send<{ mapGuid: string; userGuid: string; units: TArmyState['units'] }>(
+        await this.send<{ mapGuid: string; userGuid: string; entities: TArmyState['units'] }>(
             `${GLOBAL_CONFIG.MAP.URL}${GLOBAL_CONFIG.URLS.UPDATE_UNITS}`,
-            { mapGuid: army.mapGuid, userGuid: army.guid, units }
+            { mapGuid: army.mapGuid, userGuid: army.guid, entities: units }
         );
 
-        await this.send<{ mapGuid: string; userGuid: string; buildings: TArmyState['buildings'] }>(
+        await this.send<{ mapGuid: string; userGuid: string; entities: TArmyState['buildings'] }>(
             `${GLOBAL_CONFIG.MAP.URL}${GLOBAL_CONFIG.URLS.UPDATE_BUILDINGS}`,
-            { mapGuid: army.mapGuid, userGuid: army.guid, buildings }
+            { mapGuid: army.mapGuid, userGuid: army.guid, entities: buildings }
         );
 
         // карта возвращает { units, buildings } (см. Map.getVisbileEntitiesByRole)
@@ -226,16 +226,14 @@ class ArmyManager extends BaseManager {
             ...(visibility?.buildings ?? []),
         ];
 
-        if (visibleEnemies.length > 0) {
-            const enemyEntities: TBuildingInput[] = visibleEnemies.map(entity => ({
-                guid: entity.guid,
-                type: entity.type,
-                x: entity.x,
-                y: entity.y,
-                hp: entity.hp,
-            }));
-            army.updateEnemyEntities(enemyEntities);
-        }
+        const enemyEntities: TBuildingInput[] = visibleEnemies.map(entity => ({
+            guid: entity.guid,
+            type: entity.type,
+            x: entity.x,
+            y: entity.y,
+            hp: entity.hp,
+        }));
+        army.updateEnemyEntities(enemyEntities);
     }
 
     private async damagePeopleUnit(armyGuid: string, unitGuid: string, amount: number): Promise<void> {

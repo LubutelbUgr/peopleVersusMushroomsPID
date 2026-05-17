@@ -1,19 +1,32 @@
 const Entity = require("./Entity");
 
 class Unit extends Entity {
-    constructor({ x, y, type, guid, role, visibility = 1 }) {
+    constructor({ x, y, type, guid, role, hp = 1, visibility = 1, visible }) {
         super({ x, y, type });
         this.guid = guid;
         this.role = role;
-        this.visibility = visibility;
+        this.hp = hp;
+        this.visibility = visibility ?? visible ?? 1;
     }
 
     get() {
         return {
             ...super.get(),
             guid: this.guid,
-            role: this.role
+            role: this.role,
+            hp: this.hp,
+            visibility: this.visibility,
         };
+    }
+
+    update({ x, y, type, hp, visibility, visible }) {
+        this.x = x;
+        this.y = y;
+        if (type !== undefined) this.type = type;
+        if (hp !== undefined) this.hp = hp;
+        if (visibility !== undefined || visible !== undefined) {
+            this.visibility = visibility ?? visible;
+        }
     }
     
     getSelf() {
