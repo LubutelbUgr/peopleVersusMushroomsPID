@@ -111,8 +111,8 @@ class ArmyManager extends BaseManager {
         const unit = army.units.find(u => u.guid === unitGuid);
         if (!unit) return false;
 
-        unit.targetX = x;
-        unit.targetY = y;
+        (unit as any).targetX = x;
+        (unit as any).targetY = y;
 
         return true;
     }
