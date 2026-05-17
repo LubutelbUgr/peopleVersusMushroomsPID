@@ -48,10 +48,15 @@ class ArmyManager extends BaseManager {
         if (!army?.mapGuid) {
             return;
         }
+        const aliveUnits = data?.units ?? army.get().units;
+        const destroyedUnits = typeof army.consumeDestroyedUnits === 'function'
+            ? army.consumeDestroyedUnits()
+            : [];
+
         await this.sendToMap(`${URLS.UPDATE_UNITS}`, {
             mapGuid: army.mapGuid,
             userGuid: guid,
-            entities: data?.units ?? army.get().units,
+            entities: [...aliveUnits, ...destroyedUnits],
         });
 
         const visibility = await this.sendToMap(`${URLS.GET_VISIBILITY}`, { mapGuid: army.mapGuid, userGuid: guid });

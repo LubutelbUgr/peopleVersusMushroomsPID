@@ -17,6 +17,7 @@ class Army {
         this.common = common;
         this.callbacks = callbacks;
         this.units = []; // наши юниты
+        this.destroyedUnits = []; // tombstone-обновления для удаления юнитов с карты
         this.towers = []; // наши здания
         this.buildings = buildings; // постройки на карте
         this.enemyUnits = []; // юниты-врагм
@@ -43,6 +44,12 @@ class Army {
             units: this.units.map((u) => (typeof u.get === 'function' ? u.get() : u)),
             enemyUnits: this.enemyUnits,
         };
+    }
+
+    consumeDestroyedUnits() {
+        const destroyedUnits = this.destroyedUnits;
+        this.destroyedUnits = [];
+        return destroyedUnits;
     }
 
     _initMap(map = null) {
@@ -136,6 +143,7 @@ class Army {
         console.log('Юнит получил урон:', unit.guid, 'damage:', damage, 'hp:', unit.hp);
 
         if (unit.isDead()) {
+            this.destroyedUnits.push(unit.get());
             this.units = this.units.filter((u) => u.guid !== guid);
             console.log('Юнит уничтожен:', guid);
         }

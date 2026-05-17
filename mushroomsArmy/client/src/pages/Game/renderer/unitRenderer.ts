@@ -1,5 +1,5 @@
 import { Unit, EnemyUnit, Projectile } from '../types';
-import { UNIT_SRCS, PIZDOGLYAD_SRCS, champignebExplImages, VZRYVOMOR_FRAME_SRCS, SPOROVAYA_BASHNYA_SRCS } from './assets';
+import { UNIT_SRCS, PEOPLE_UNIT_SRCS, PIZDOGLYAD_SRCS, champignebExplImages, VZRYVOMOR_FRAME_SRCS, SPOROVAYA_BASHNYA_SRCS } from './assets';
 import { isImageDrawable, tryDrawImageScaled, getBuildingImage } from './buildingRenderer';
 import {
   getVzryvomorFrameKey,
@@ -15,6 +15,17 @@ const MAX_HP: Record<string, number> = {
   vzryvomor: 70,
   sporovaya_bashnya: 160,
   pizdoglyad: 2,
+  soldier: 10,
+  bmp: 100,
+  sniper: 20,
+  partizan: 15,
+};
+
+const PEOPLE_UNIT_COLORS: Record<string, { fill: string; stroke: string }> = {
+  soldier: { fill: '#4a9eff', stroke: '#7dc4ff' },
+  bmp: { fill: '#39d353', stroke: '#7ee787' },
+  sniper: { fill: '#f59e0b', stroke: '#fde68a' },
+  partizan: { fill: '#22c55e', stroke: '#bbf7d0' },
 };
 
 const ECONOMY_BUILDING_CONFIG: Record<string, { label: string; color: string }> = {
@@ -37,6 +48,7 @@ const pizdoglyadImages: { idle: HTMLImageElement; walk: HTMLImageElement } = {
 const prevUnitPositions = new Map<string, { x: number; y: number }>();
 
 const unitImages: Record<string, HTMLImageElement> = {};
+const peopleUnitImages: Record<string, HTMLImageElement> = {};
 
 function getUnitImage(unit: Unit): HTMLImageElement | undefined {
   if (unit.type === 'pizdoglyad') {
@@ -54,6 +66,18 @@ function getUnitImage(unit: Unit): HTMLImageElement | undefined {
     unitImages[unit.type] = img;
   }
   return unitImages[unit.type];
+}
+
+function getPeopleUnitImage(unit: EnemyUnit): HTMLImageElement | undefined {
+  if (!peopleUnitImages[unit.type]) {
+    const src = PEOPLE_UNIT_SRCS[unit.type];
+    if (src === undefined) return undefined;
+    const img = new Image();
+    img.src = src;
+    peopleUnitImages[unit.type] = img;
+  }
+
+  return peopleUnitImages[unit.type];
 }
 
 const CHAMPIGNEB_EXPL_DURATION = 1000;
@@ -422,14 +446,55 @@ export function drawEnemyUnits(
     const cx = unit.x * cellW + cellW / 2;
     const cy = unit.y * cellH + cellH / 2;
     const radius = Math.min(cellW, cellH) * 0.35;
+    const peopleUnitColor = PEOPLE_UNIT_COLORS[unit.type];
 
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    ctx.fillStyle = '#e53935';
-    ctx.fill();
-    ctx.strokeStyle = '#7f1d1d';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
+    if (peopleUnitColor) {
+      const img = getPeopleUnitImage(unit);
+      const sizeMultiplier = unit.type === 'bmp' ? 3.2 : 2.2;
+      const size = radius * sizeMultiplier;
+
+      if (!isImageDrawable(img) || !tryDrawImageScaled(ctx, img, cx - size / 2, cy - size / 2, size, size)) {
+        ctx.fillStyle = peopleUnitColor.fill;
+        ctx.strokeStyle = peopleUnitColor.stroke;
+        ctx.lineWidth = 1.5;
+
+        if (unit.type === 'bmp') {
+          const side = radius * 1.8;
+          ctx.fillRect(cx - side / 2, cy - side / 2, side, side);
+          ctx.strokeRect(cx - side / 2, cy - side / 2, side, side);
+        } else if (unit.type === 'sniper') {
+          ctx.beginPath();
+          ctx.moveTo(cx, cy - radius);
+          ctx.lineTo(cx + radius, cy);
+          ctx.lineTo(cx, cy + radius);
+          ctx.lineTo(cx - radius, cy);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        } else if (unit.type === 'partizan') {
+          ctx.beginPath();
+          ctx.moveTo(cx, cy - radius);
+          ctx.lineTo(cx + radius, cy + radius);
+          ctx.lineTo(cx - radius, cy + radius);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        } else {
+          ctx.beginPath();
+          ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        }
+      }
+    } else {
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.fillStyle = '#e53935';
+      ctx.fill();
+      ctx.strokeStyle = '#7f1d1d';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
 
     const barWidth = radius * 1.8;
     const barHeight = 5;

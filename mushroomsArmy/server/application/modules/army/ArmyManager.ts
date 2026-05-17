@@ -210,41 +210,33 @@ class ArmyManager extends BaseManager {
         if (!user) return;
 
         const army = this.army[guid];
-        const fogMap = army ? this.buildFogMap(armyState, army.map) : armyState.map;
-        
-        const stateManager = this.armyStateManagers[guid];
-        const metrics = stateManager ? stateManager.getMetrics() : null;
-        
-        this.io.to(user.socketId).emit(GAME_STATE, this.answer.good({ 
-            ...armyState, 
-            map: fogMap,
-            metrics,
-        }));
+        if (!army) return;
 
-        // if (army && army.getAliveUnits().length === 0) {
+        // if (army.getAliveUnits().length === 0) {
         //     this.io.to(user.socketId).emit(GAME_OVER, this.answer.good({ message: 'Все юниты погибли' }));
         //     this.destroyArmy(guid);
         //     return;
         // }
         
-        // if (army && army.buildings.length === 0) {
+        // if (army.buildings.length === 0) {
         //     this.io.to(user.socketId).emit(GAME_OVER, this.answer.good({ message: 'Все здания разрушены' }));
         //     this.destroyArmy(guid);
         //     return;
         // }
 
-        const { units, buildings } = armyState;
+        const { units } = armyState;
+        const ownBuildings = army.buildings.map(building => building.getState());
 
         // Отправляем юниты и здания на карту
         // карта читает поля units / buildings (см. useUpdateUnitsHandler.js / useUpdateBuildingsHandler.js)
-        await this.send<{ mapGuid: string; userGuid: string; units: TArmyState['units'] }>(
+        await this.send<{ mapGuid: string; userGuid: string; entities: TArmyState['units'] }>(
             `${GLOBAL_CONFIG.MAP.URL}${GLOBAL_CONFIG.URLS.UPDATE_UNITS}`,
             { mapGuid: army.mapGuid, userGuid: army.guid, entities: units }
         );
 
         await this.send<{ mapGuid: string; userGuid: string; entities: TArmyState['buildings'] }>(
             `${GLOBAL_CONFIG.MAP.URL}${GLOBAL_CONFIG.URLS.UPDATE_BUILDINGS}`,
-            { mapGuid: army.mapGuid, userGuid: army.guid, entities: buildings }
+            { mapGuid: army.mapGuid, userGuid: army.guid, entities: ownBuildings }
         );
 
         // Получаем видимых врагов
@@ -252,9 +244,11 @@ class ArmyManager extends BaseManager {
             GLOBAL_CONFIG.URLS.GET_VISIBILITY, army.mapGuid, army.guid
         );
 
+        const visibleEnemyUnits = visibility?.units ?? [];
+        const visibleEnemyBuildings = visibility?.buildings ?? [];
         const visibleEnemies: TVisibleEntity[] = [
-            ...(visibility?.units ?? []),
-            ...(visibility?.buildings ?? []),
+            ...visibleEnemyUnits,
+            ...visibleEnemyBuildings,
         ];
 
         const enemyEntities: TBuildingInput[] = visibleEnemies.map(entity => ({
@@ -265,6 +259,26 @@ class ArmyManager extends BaseManager {
             hp: entity.hp,
         }));
         army.updateEnemyEntities(enemyEntities);
+
+        const updatedState = army.getState();
+        const clientBuildingsByGuid = new Map(
+            updatedState.buildings.map(building => [building.guid, building] as const)
+        );
+        for (const building of visibleEnemyBuildings) {
+            clientBuildingsByGuid.set(building.guid, building);
+        }
+
+        const fogMap = this.buildFogMap(updatedState, army.map);
+        const stateManager = this.armyStateManagers[guid];
+        const metrics = stateManager ? stateManager.getMetrics() : null;
+
+        this.io.to(user.socketId).emit(GAME_STATE, this.answer.good({
+            ...updatedState,
+            map: fogMap,
+            enemyUnits: visibleEnemyUnits,
+            buildings: [...clientBuildingsByGuid.values()],
+            metrics,
+        }));
     }
 
     private async damagePeopleUnit(armyGuid: string, unitGuid: string, amount: number): Promise<void> {
