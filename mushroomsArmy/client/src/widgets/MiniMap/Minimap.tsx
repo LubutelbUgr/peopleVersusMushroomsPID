@@ -1,5 +1,12 @@
 ﻿import React, { useEffect, useRef, useMemo } from 'react';
 import { GameState, TCamera, MapTile } from '../../pages/Game/types';
+import {
+  buildCircularVisibilityMask,
+  coerceTerrainCell,
+  exploredMask,
+  exploredTerrainMap,
+  syncExplorationMemory,
+} from '../../pages/Game/renderer/fogOfWar';
 import './Minimap.css';
 
 interface MinimapProps {
@@ -14,6 +21,21 @@ const getTerrainColor = (tile: MapTile): string => {
     case 2: return '#8b5a2b';
     default: return '#1f2d24';
   }
+};
+
+const resolveMinimapTerrain = (
+  map: MapTile[][],
+  visibilityMask: boolean[][],
+  x: number,
+  y: number
+): MapTile => {
+  const serverTerrain = coerceTerrainCell(map[y]?.[x]);
+  const rememberedTerrain = exploredTerrainMap?.[y]?.[x] ?? null;
+  const wasExplored = exploredMask?.[y]?.[x] === true && rememberedTerrain !== null;
+  const currentlyVisible = visibilityMask[y]?.[x] === true && serverTerrain !== null;
+  if (currentlyVisible) return serverTerrain;
+  if (wasExplored) return rememberedTerrain;
+  return null;
 };
 
 const ownBuildingTypes = ['vzryvomor', 'sporovaya_bashnya'];
@@ -120,17 +142,20 @@ const Minimap: React.FC<MinimapProps> = ({ gameState, camera }) => {
     const cols = map[0]?.length ?? 0;
 
     if (rows > 0 && cols > 0) {
+      syncExplorationMemory(map);
+      const visibilityMask = buildCircularVisibilityMask(gameState, rows, cols);
       const cellW = width / cols;
       const cellH = height / rows;
       ctx.clearRect(0, 0, width, height);
       for (let y = 0; y < rows; y++) {
         for (let x = 0; x < cols; x++) {
-          ctx.fillStyle = getTerrainColor(map[y][x]);
+          const terrain = resolveMinimapTerrain(map, visibilityMask, x, y);
+          ctx.fillStyle = getTerrainColor(terrain);
           ctx.fillRect(x * cellW, y * cellH, Math.ceil(cellW), Math.ceil(cellH));
         }
       }
     }
-  }, [gameState?.map]);
+  }, [gameState]);
 
   return (
     <div className="game-minimap">
