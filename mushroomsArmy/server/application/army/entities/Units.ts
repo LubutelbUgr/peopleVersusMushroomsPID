@@ -65,6 +65,13 @@ class Unit {
     public attackRange: number;
     public poisonEffects: TPoisonEffect[] = [];
     public projectiles: TProjectile[] = [];
+    // Cлот формации, назначаемый ArmyStateManager. Используется как fallback-цель,
+    // когда у юнита нет более приоритетного таргета (боевой / хил-ally).
+    public formationTarget: { x: number; y: number } | null = null;
+    // Поводок: дальше этого расстояния от formationTarget враг игнорируется в
+    // makeDecision. Infinity = без ограничения (sporomet/eblekar). Champigneb
+    // переопределяет на конечное значение, чтобы держать "пояс мин" вдоль слота.
+    public leashRadius: number = Infinity;
     protected enemies: Unit [] = [];
     
     private easyStar: EasyStar.js;
@@ -118,24 +125,37 @@ class Unit {
     private makeDecision(enemies: Unit[], map: TMap): void {
         let nearestEnemy: Unit | null = null;
         let nearestDistance: number = Infinity;
-        
+
+        // Leash-фильтр: если у юнита есть конечный leashRadius и назначенный
+        // formationTarget, игнорируем врагов дальше leashRadius от слота. Это
+        // не даёт champigneb рассыпаться по карте за случайными целями вдали
+        // от своего поста.
+        const leashOk = (enemy: Unit): boolean => {
+            if (!this.formationTarget || this.leashRadius === Infinity) return true;
+            const dx = enemy.x - this.formationTarget.x;
+            const dy = enemy.y - this.formationTarget.y;
+            return (dx * dx + dy * dy) <= this.leashRadius * this.leashRadius;
+        };
+
         for (const enemy of enemies) {
             if (!enemy.isAlive) continue;
-            
+            if (!leashOk(enemy)) continue;
+
             const dx = enemy.x - this.x;
             const dy = enemy.y - this.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
-            
+
             if (distance < nearestDistance && this.hasLineOfSight(this.x, this.y, enemy.x, enemy.y, map)) {
                 nearestDistance = distance;
                 nearestEnemy = enemy;
             }
         }
-        
+
         // Нет видимого врага — ищем ближайшего без LoS (просто идём к нему через pathfinding)
         if (!nearestEnemy) {
             for (const enemy of enemies) {
                 if (!enemy.isAlive) continue;
+                if (!leashOk(enemy)) continue;
                 const dx = enemy.x - this.x;
                 const dy = enemy.y - this.y;
                 const distance = Math.sqrt(dx * dx + dy * dy);
@@ -148,10 +168,15 @@ class Unit {
 
         if (nearestEnemy) {
             this.onEnemyFound(nearestEnemy, nearestDistance);
+        } else if (this.formationTarget) {
+            // Нет врагов — становимся в назначенный слот формации
+            this.targetX = this.formationTarget.x;
+            this.targetY = this.formationTarget.y;
         } else {
-            // Нет врагов — двигаемся к центру карты
-            this.targetX = 50;
-            this.targetY = 50;
+            // Нет ни врагов, ни слота — стоим на месте. (Раньше тут было (50,50),
+            // что в фазе Defense уводило юнитов без слота в центр карты.)
+            this.targetX = this.x;
+            this.targetY = this.y;
         }
     }
 

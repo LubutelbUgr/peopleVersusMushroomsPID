@@ -6,7 +6,7 @@ import Pizdoglyad from "./entities/Pizdoglyad/Pizdoglyad";
 import SporovayaBashnya from "./entities/SporovayaBashnya/SporovayaBashnya";
 import Unit, { TProjectile, TUnitState } from "./entities/Units";
 import { IBuilding, Vzryvomor } from "./entities/Vzryvomor/Vzryvomor";
-import { ArmyStateManager, ArmyMode, ArmyMetrics, ScoutTracker } from './ArmyStateManager';
+import { ArmyStateManager, ArmyMode, ArmyMetrics, ScoutTracker, TFormationState } from './ArmyStateManager';
 import { EconomyRequest, EconomyResponse } from './ArmyStateManager';
 
 
@@ -63,6 +63,7 @@ export type TArmyState = {
     buildings: TBuildingState[];
     slimePuddles: TSlimePuddle[];
     projectiles: TProjectile[];
+    formation: TFormationState | null;
 }
 
 export class Army {
@@ -355,6 +356,7 @@ export class Army {
                 .filter(u => u.type === 'champigneb' && !u.isAlive)
                 .map(u => (u as unknown as Champigneb).slimePuddle),
             projectiles: this.projectiles,
+            formation: this.stateManager.getFormationState(),
         };
     }
 

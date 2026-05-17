@@ -1,7 +1,17 @@
 import { Army, TArmyState, TBuildingInput } from './Army';
 import Common from '../modules/common/Common';
+import FormationPlanner from './FormationPlanner';
 
 export type ArmyMode = 'defense' | 'attack' | 'balanced';
+
+export type TFormationState = {
+    center: { x: number; y: number };
+    slots: {
+        champigneb: { x: number; y: number }[];
+        sporomet:   { x: number; y: number }[];
+        eblekar:    { x: number; y: number }[];
+    };
+};
 
 export interface ArmyMetrics {
     aliveUnitsCount: number;
@@ -88,6 +98,9 @@ export class ArmyStateManager {
     private onScoutRespawn?: (scoutGuid: string) => void;
     private economyRequestCallback?: (request: EconomyRequest) => Promise<EconomyResponse | null>;
 
+    // Планировщик построения (lazy-init: базы и карта известны после конструктора Army)
+    private formationPlanner: FormationPlanner | null = null;
+
     // Интервал обновления
     private updateInterval?: NodeJS.Timeout;
     private readonly UPDATE_RATE = 200; // мс
@@ -113,9 +126,84 @@ export class ArmyStateManager {
         this.updateUnitMetrics();
         this.updateBuildingMetrics();
         this.updateMode();
+        this.updateFormationAndWalls();
         this.updateScouts();
         this.updateDistanceTraveled();
         this.processAutoBuild();
+    }
+
+    // Тик-логика формации: counts → планнер → stable assign → wall trigger.
+    // Семантика — spec/formation.md.
+    private updateFormationAndWalls(): void {
+        const planner = this.ensureFormationPlanner();
+        if (!planner) return;
+
+        const counts = { sporomet: 0, eblekar: 0, champigneb: 0 };
+        for (const u of this.army.units) {
+            if (!u.isAlive) continue;
+            if (u.type === 'sporomet')       counts.sporomet++;
+            else if (u.type === 'eblekar')   counts.eblekar++;
+            else if (u.type === 'champigneb') counts.champigneb++;
+        }
+
+        const slots = planner.updateForCounts(counts);
+        this.assignFormationTargets(slots);
+
+        // Settle-detection (spec §5): юниты в transit и без слота не считаются —
+        // иначе стены строятся на спавне далеко от формации.
+        const SETTLE_RADIUS = 1;
+        const unitPositions: { x: number; y: number }[] = [];
+        for (const u of this.army.units) {
+            if (!u.isAlive) continue;
+            if (u.type !== 'sporomet' && u.type !== 'eblekar' && u.type !== 'champigneb') continue;
+            if (!u.formationTarget) continue;
+            const dx = Math.abs(u.x - u.formationTarget.x);
+            const dy = Math.abs(u.y - u.formationTarget.y);
+            if (Math.max(dx, dy) > SETTLE_RADIUS) continue;
+            unitPositions.push({ x: u.x, y: u.y });
+        }
+        const newWallPositions = planner.checkWallTrigger(unitPositions);
+        if (newWallPositions) {
+            for (const pos of newWallPositions) {
+                this.army.spawnBuilding('vzryvomor', pos.x, pos.y, this.common);
+            }
+        }
+    }
+
+    // Stable assignment (spec §4.1): юниты с target в новом slots[type] сохраняют его;
+    // остальные получают свободные слоты в wave-order; излишки → null.
+    private assignFormationTargets(slots: Record<'sporomet' | 'eblekar' | 'champigneb', { x: number; y: number }[]>): void {
+        for (const type of ['sporomet', 'eblekar', 'champigneb'] as const) {
+            const alive = this.army.units.filter(u => u.isAlive && u.type === type);
+            const typeSlots = slots[type];
+
+            const slotKey = (s: { x: number; y: number }) => `${s.x},${s.y}`;
+            const slotMap = new Map<string, { x: number; y: number }>();
+            for (const s of typeSlots) slotMap.set(slotKey(s), s);
+
+            const claimedKeys = new Set<string>();
+            for (const u of alive) {
+                if (!u.formationTarget) continue;
+                const k = slotKey(u.formationTarget);
+                if (slotMap.has(k) && !claimedKeys.has(k)) {
+                    claimedKeys.add(k);
+                } else {
+                    u.formationTarget = null;
+                }
+            }
+
+            const freeSlots = typeSlots.filter(s => !claimedKeys.has(slotKey(s)));
+            let freeIdx = 0;
+            for (const u of alive) {
+                if (u.formationTarget) continue;
+                if (freeIdx < freeSlots.length) {
+                    u.formationTarget = { x: freeSlots[freeIdx].x, y: freeSlots[freeIdx].y };
+                    freeIdx++;
+                } else {
+                    u.formationTarget = null;
+                }
+            }
+        }
     }
 
     private updateUnitMetrics(): void {
@@ -337,6 +425,71 @@ export class ArmyStateManager {
         }
 
         return null;
+    }
+
+    /**
+     * Возвращает следующий свободный слот в построении для юнита данного типа.
+     * Фронт держат Взрывоморы-стены (см. Army.generateDefensiveLayout); планнер
+     * расставляет только юнитов за стеной: sporomet — ближний эшелон к стене,
+     * eblekar — глубже в центре базы под защитой обоих слоёв.
+     * Слоты в шашечном порядке с шагом unitSpacing метров.
+     * null — если все слоты заняты или построение не удалось инициализировать
+     * (например, нет своих башен, чтобы определить центр базы).
+     */
+    /**
+     * Возвращает текущее состояние формации для отрисовки в UI: центр и
+     * все слоты по эшелонам (после фильтра карты). Клиент использует это
+     * чтобы нарисовать рамку и пустые маркеры слотов поверх юнитов.
+     */
+    public getFormationState(): TFormationState | null {
+        const p = this.formationPlanner;
+        if (!p) return null;
+        const c = p.center;
+        return {
+            center: { x: c.x, y: c.y },
+            slots: {
+                champigneb: p.getSlots('champigneb').map(s => ({ x: s.x, y: s.y })),
+                sporomet:   p.getSlots('sporomet').map(s   => ({ x: s.x, y: s.y })),
+                eblekar:    p.getSlots('eblekar').map(s    => ({ x: s.x, y: s.y })),
+            },
+        };
+    }
+
+    private ensureFormationPlanner(): FormationPlanner | null {
+        if (this.formationPlanner) return this.formationPlanner;
+
+        const map = this.army.map;
+        if (!map || map.length === 0 || (map[0]?.length ?? 0) === 0) return null;
+
+        // Base zone — правый нижний угол 15×15 (Army.generateDefensiveLayout).
+        // Вычисляем из текущей карты, не хардкодим — на случай других размеров.
+        const rows = map.length;
+        const cols = map[0].length;
+        const baseWallTopY  = rows - 15;
+        const baseWallLeftX = cols - 15;
+
+        // Центр базы = среднее по координатам своих башен (если есть), иначе
+        // геометрический центр угловой зоны.
+        const towers = this.army.buildings.filter(b => b.type === 'sporovaya_bashnya');
+        let baseCenter: { x: number; y: number };
+        if (towers.length > 0) {
+            let sumX = 0, sumY = 0;
+            for (const t of towers) { sumX += t.x; sumY += t.y; }
+            baseCenter = { x: sumX / towers.length, y: sumY / towers.length };
+        } else {
+            baseCenter = {
+                x: baseWallLeftX + 7,
+                y: baseWallTopY + 7,
+            };
+        }
+
+        this.formationPlanner = new FormationPlanner({
+            map,
+            baseCenter,
+            baseWallTopY,
+            baseWallLeftX,
+        });
+        return this.formationPlanner;
     }
 
     public registerUnitSpawn(type: string, guid: string): void {
