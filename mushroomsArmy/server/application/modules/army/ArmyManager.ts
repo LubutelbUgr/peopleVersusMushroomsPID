@@ -354,7 +354,7 @@ class ArmyManager extends BaseManager {
         this.io.to(user.socketId).emit('scout_respawned', this.answer.good({ scoutGuid }));
     }
 
-    private async eventStartGame({ guid, map, buildings, mapGuid, peopleArmyGuid }: TStartGame): Promise<void> {
+    private async eventStartGame({ guid, map, buildings, mapGuid, peopleArmyGuid, peopleEconomyGuid }: TStartGame): Promise<void> {
         const user = this.mediator.get(this.TRIGGERS.GET_USER_BY_GUID, guid);
         if (!user) return;
 
@@ -364,16 +364,21 @@ class ArmyManager extends BaseManager {
         let resolvedMap = map;
 
         if (!resolvedMap) {
-            const relief = await this.send<{ mapGuid: string; userGuid: string }, TReliefResponse>(
-                `${GLOBAL_CONFIG.MAP.URL}${GLOBAL_CONFIG.URLS.GET_RELIEF}`,
-                { mapGuid, userGuid: guid }
-            );
+            try {
+                const relief = await this.send<{ mapGuid: string; userGuid: string }, TReliefResponse>(
+                    `${GLOBAL_CONFIG.MAP.URL}${GLOBAL_CONFIG.URLS.GET_RELIEF}`,
+                    { mapGuid, userGuid: guid }
+                );
 
-            if (!relief || !Array.isArray(relief)) {
+                if (!relief || !Array.isArray(relief)) {
+                    return;
+                }
+
+                resolvedMap = relief;
+            } catch (err) {
+                console.error('[ArmyManager] Ошибка получения рельефа:', err);
                 return;
             }
-
-            resolvedMap = relief;
         }
 
         let finalBuildings = buildings;
@@ -381,7 +386,12 @@ class ArmyManager extends BaseManager {
             finalBuildings = Army.generateDefensiveLayout(resolvedMap, this.common);
         }
 
-        this.armyGuids[guid] = { peopleArmyGuid: peopleArmyGuid ?? null, peopleEconomyGuid: peopleEconomyGuid ?? null };
+        // ИСПРАВЛЕНО: Теперь и armyGuid, и economyGuid сохраняются корректно
+        this.armyGuids[guid] = { 
+            peopleArmyGuid: peopleArmyGuid ?? null, 
+            peopleEconomyGuid: (peopleEconomyGuid as string | null) ?? null 
+        };
+
         this.army[guid] = new Army({
             mapGuid,
             map: resolvedMap,
@@ -390,7 +400,7 @@ class ArmyManager extends BaseManager {
             guid,
             callbacks: {
                 update: (guid: string, armyState: TArmyState) => this.updateArmyCallback(guid, armyState),
-                takeDamage: (unitGuid: string, amount: number) => this.damagePeopleUnit(guid, unitGuid, amount),
+                takeDamage: (unitGuid: string, amount: number) => this.damagePeopleUnit(guid, unitGuid, amount).catch(console.error),
                 takeEconomyDamage: (buildingGuid: string, amount: number) => {
                     const guids = this.armyGuids[guid];
                     if (guids?.peopleEconomyGuid) {
