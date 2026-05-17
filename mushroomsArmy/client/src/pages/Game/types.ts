@@ -61,27 +61,14 @@ export type Projectile = {
 };
 
 /**
- * Состояние формации, приходит от сервера для визуализации рамки и слотов.
- */
-export type Formation = {
-  center: { x: number; y: number };
-  slots: {
-    champigneb: { x: number; y: number }[];
-    sporomet:   { x: number; y: number }[];
-    eblekar:    { x: number; y: number }[];
-  };
-};
-
-/**
  * Полное состояние игры
  */
 export type GameState = {
   map: MapTile[][];
   units: Unit[];
   buildings: Building[];
-  slimePuddles: SlimePuddle[];
+  slimePuddles: SlimePuddle[]; 
   projectiles: Projectile[];
-  formation: Formation | null;
 };
 
 export type TCamera = {
