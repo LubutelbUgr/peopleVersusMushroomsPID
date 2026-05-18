@@ -30,14 +30,9 @@ const GLOBAL_CONFIG = {
 
     CORS: { //Подключается через app.use()
         origin: "*",
-        middleware: (req, res, next) => {
+        middleware: (_, res, next) => {
             res.header('Content-Type', 'application/json; charset=utf-8');
             res.header('Access-Control-Allow-Origin', '*');
-            res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-            res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-            if (req.method === 'OPTIONS') {
-                return res.sendStatus(204);
-            }
             next();
         }
     },
