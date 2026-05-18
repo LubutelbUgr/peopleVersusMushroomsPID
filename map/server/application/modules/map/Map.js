@@ -50,15 +50,15 @@ class Map {
         }
     }
 
-    getSelf() {
-        return {
-            ...this.get(),
-            sources: this.sources.map(source => source)
-        };
-    }
-
     getRelief() {
         return this.map.map(row => row.map(tile => tile));
+    }
+
+    getSelf() {
+        return {
+            map: this.getRelief(),
+            sources: this.sources.map(source => source)
+        };
     }
 
     getGen() {
