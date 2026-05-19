@@ -86,39 +86,7 @@ class Army {
             };
         });
 
-        this._spawnTestUnits();
         this.callbacks.update(this.guid, this.get());
-    }
-
-    // 5 тестовых юнитов в зоне старта (верхний левый угол, гарантированно проходимые клетки 0-14)
-    _spawnTestUnits() {
-        // Запасные статы на случай если unitTypes ещё не загружены из БД
-        const fallback = {
-            soldier:  { HP: 10,  SPEED: 1, RANGE: 3,  VISIBLE: 5,  DAMAGE: 3 },
-            bmp:      { HP: 100, SPEED: 3, RANGE: 5,  VISIBLE: 3,  DAMAGE: 25 },
-            sniper:   { HP: 10,  SPEED: 1, RANGE: 12, VISIBLE: 15, DAMAGE: 8 },
-            partizan: { HP: 10,  SPEED: 4, RANGE: 8,  VISIBLE: 10, DAMAGE: 5 },
-        };
-        if (!this.unitTypes || Object.keys(this.unitTypes).length === 0) {
-            console.warn('[_spawnTestUnits] unitTypes не загружены, используем fallback');
-            this.unitTypes = { ...fallback };
-        }
-
-        const startUnits = [
-            { type: 'soldier',  x: 2, y: 2 },
-            { type: 'soldier',  x: 3, y: 2 },
-            { type: 'bmp',      x: 4, y: 2 },
-            { type: 'sniper',   x: 2, y: 3 },
-            { type: 'partizan', x: 3, y: 3 },
-        ];
-        for (const { type, x, y } of startUnits) {
-            const result = this.createUnit({ type, x, y });
-            if (result?.ok) {
-                console.log(`[_spawnTestUnits] создан ${type} на (${x},${y})`);
-            } else {
-                console.warn(`[_spawnTestUnits] не удалось создать ${type}: ${result?.error}`);
-            }
-        }
     }
 
     setVisibility({ units = [], buildings = [] } = {}) {
@@ -162,7 +130,6 @@ class Army {
         unit.type = unitType;
         unit.maxHp = unit.hp;
         unit.damage = Number(stats.DAMAGE) || 1;
-        unit.maxHp = unit.hp;
 
         this.units.push(unit);
         this.setUnitsTarget();
@@ -353,8 +320,6 @@ class Army {
                 amount,
             });
         }
-
-        
     }
 
     // 2. сходить юнитами (если в радиусе есть враги — стоим и стреляем в shotUnits, к цели не идём)
