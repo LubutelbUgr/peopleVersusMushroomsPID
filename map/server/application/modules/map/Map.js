@@ -142,6 +142,22 @@ class Map {
         }
         if (unitIndex + 1) {
             this.units[unitIndex].update(unit);
+            //у них 
+
+        //Юнит стоит (стреляет, ждёт) — его бы сняли с карты.
+        // Юнит умер — если координаты в пакете не совпали, останется призрак.
+        // Нет hp — карта не знает реальное состояние, только эвристику.
+            //const unitIndex = this.units.findIndex(elem => unit.guid === elem.guid);
+            //if (unitIndex + 1) {
+            // const unitInArray = this.units[unitIndex]
+            // // если нашелся и не изменился - считаем убитым
+            // if (unit.x === unitInArray.x && unit.y === unitInArray.y) {
+            //     this.units.splice(unitIndex, 1);
+            // } else {
+            //     // если нашелся и изменился - передвинулся
+            //     unitInArray.x = unit.x;
+            //     unitInArray.y = unit.y;
+            // }
         } else {
             // не нашли - добавляем
             this.units.push(

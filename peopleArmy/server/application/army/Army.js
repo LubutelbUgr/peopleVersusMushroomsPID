@@ -17,7 +17,10 @@ class Army {
         this.common = common;
         this.callbacks = callbacks;
         this.units = []; // наши юниты
+        //добавлено
+        //Без destroyedUnits после смерти на карту уйдут только живые — призрак юнита останется, пока его как-то не вычистят.
         this.destroyedUnits = []; // tombstone-обновления для удаления юнитов с карты
+        //
         this.towers = []; // наши здания
         this.buildings = buildings; // постройки на карте
         this.enemyUnits = []; // юниты-врагм
@@ -46,11 +49,14 @@ class Army {
         };
     }
 
+    //добавлено
+    //необязатьно(попробовать без него)
     consumeDestroyedUnits() {
         const destroyedUnits = this.destroyedUnits;
         this.destroyedUnits = [];
         return destroyedUnits;
     }
+    /////
 
     _initMap(map = null) {
         if (Array.isArray(map)) {
@@ -89,7 +95,12 @@ class Army {
     }
 
     setVisibility({ units = [], buildings = [] } = {}) {
+        //было закоментировано
+
+    //Защита от кривого ответа — если с карты придёт не массив (null, объект, ошибка в поле), без проверки сломается shotUnits / getUnitsInRange (.length, .find, .filter).
+    // Всегда массив — как у enemyBuildings на следующей строке; единый контракт.
         this.enemyUnits = Array.isArray(units) ? units : [];
+        ///
         this.enemyBuildings = Array.isArray(buildings) ? buildings : [];
         this.updated = true;
     }
@@ -129,7 +140,7 @@ class Army {
         unit.type = unitType;
         unit.maxHp = unit.hp;
         unit.damage = Number(stats.DAMAGE) || 1;
-        unit.maxHp = unit.hp;
+        
 
         this.units.push(unit);
         this.setUnitsTarget();

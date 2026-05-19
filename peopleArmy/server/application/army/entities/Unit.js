@@ -60,7 +60,8 @@ class Unit {
             x: this.x,
             y: this.y,
             hp: this.hp,
-            maxHp: this.maxHp ?? this.hp,
+            maxHp: this.maxHp,
+            //maxHp: this.maxHp ?? this.hp,(мое, страховка)
             speed: this.speed,
             range: this.range,
             visible: this.visible,

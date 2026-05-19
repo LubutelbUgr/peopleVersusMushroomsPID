@@ -5,8 +5,12 @@ class Unit extends Entity {
         super({ x, y, type });
         this.guid = guid;
         this.role = role;
+        //добавлено
+        //Без поля юнит на карте без здоровья: смерть по входящему пакету один раз сработает,
+        //  но после update()/get() hp не сохранится.
         this.hp = hp;
         this.visibility = visibility ?? visible ?? 1;
+        //
     }
 
     get() {

@@ -48,6 +48,13 @@ class ArmyManager extends BaseManager {
         if (!army?.mapGuid) {
             return;
         }
+        // послать в карту И в экономику изменение положения юнитов (просто послать юниты)
+        //...
+        // запросить видимость
+
+        //добавлено
+        // карта не видит вашу армию сама — каждый тик нужно отправить живых юнитов и «трупы» с hp ≤ 0, 
+        // иначе на карте не появятся, не сдвинутся и не исчезнут после смерти.
         const aliveUnits = data?.units ?? army.get().units;
         const destroyedUnits = typeof army.consumeDestroyedUnits === 'function'
             ? army.consumeDestroyedUnits()
@@ -58,6 +65,7 @@ class ArmyManager extends BaseManager {
             userGuid: guid,
             entities: [...aliveUnits, ...destroyedUnits],
         });
+        /////
 
         const visibility = await this.sendToMap(`${URLS.GET_VISIBILITY}`, { mapGuid: army.mapGuid, userGuid: guid });
         if (visibility) {

@@ -85,6 +85,7 @@ class Server {
         return true;
     }
 
+    //для тестов
     async createUnit(type: 'soldier' | 'bmp' | 'sniper' | 'partizan', x: number, y: number): Promise<boolean> {
         const guid = this.mediator.get(TRIGGERS.GET_STORE, 'guid');
         if (!guid) {
@@ -112,7 +113,7 @@ class Server {
             return false;
         }
     }
-
+    ////
 }
 
 export default Server;

@@ -1,5 +1,16 @@
 const Entity = require("./Entity");
 
+
+//у них
+// class Building extends Unit {
+//     constructor({ x, y, type, guid, role, size = 1, visibility = 1 }) {
+//         super({ x, y, type, guid, role, visibility });
+
+//         this.size = size;
+//     }
+
+// здание на карте — не точечный юнит: у него площадь,
+//  hp и обновление без удаления; старый вариант этого не покрывал.
 class Building extends Entity {
     constructor({ x, y, type, guid, role, hp = 1, size = 1, sizeX, sizeY, visibility = 1, visible }) {
         super({ x, y, type });
