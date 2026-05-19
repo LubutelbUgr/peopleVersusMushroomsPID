@@ -85,34 +85,6 @@ class Server {
         return true;
     }
 
-    async createUnit(type: 'soldier' | 'bmp' | 'sniper' | 'partizan', x: number, y: number): Promise<boolean> {
-        const guid = this.mediator.get(TRIGGERS.GET_STORE, 'guid');
-        if (!guid) {
-            this.setError('Не найден guid пользователя');
-            return false;
-        }
-
-        try {
-            const response = await fetch(`${this.HOST}/unit/create`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json;charset=utf-8',
-                },
-                body: JSON.stringify({ guid, type, x, y }),
-            });
-            const body = await response.json();
-            if (body?.result === 'ok') {
-                return true;
-            }
-            this.setError(body?.error?.message ?? body?.error ?? 'Не удалось создать юнита');
-            return false;
-        } catch (e) {
-            console.log('Create unit exception:', e);
-            this.setError('Не удалось создать юнита');
-            return false;
-        }
-    }
-
 }
 
 export default Server;

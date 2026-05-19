@@ -370,7 +370,7 @@ function fitCellToWrap(wrap: HTMLElement, cols: number, rows: number): number {
     return Math.min(Math.max(fit, MIN_CELL_PX), MAX_CELL_PX);
 }
 
-const Game: React.FC<IBasePage> = ({ mediator, setPage, server }) => {
+const Game: React.FC<IBasePage> = ({ mediator, setPage, server: _server }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const canvasWrapRef = useRef<HTMLDivElement>(null);
     const pendingScrollRef = useRef<{ ratio: number; sl: number; st: number } | null>(null);
@@ -455,10 +455,6 @@ const Game: React.FC<IBasePage> = ({ mediator, setPage, server }) => {
     const zoomReset = useCallback(() => applyZoom(ZOOM_DEFAULT), [applyZoom]);
 
     const zoomPercent = useMemo(() => Math.round(zoom / ZOOM_DEFAULT * 100), [zoom]);
-
-    const spawnTestUnit = useCallback((type: 'soldier' | 'bmp' | 'sniper' | 'partizan', x: number, y: number) => {
-        void server.createUnit(type, x, y);
-    }, [server]);
 
     // Перетаскивание карты мышью
     const isDraggingRef = useRef(false);
@@ -595,31 +591,6 @@ const Game: React.FC<IBasePage> = ({ mediator, setPage, server }) => {
                         <button className="game-zoom-value" onClick={zoomReset} title="Сбросить">{zoomPercent}%</button>
                         <button className="game-zoom-btn" onClick={zoomIn} title="Увеличить (+)">+</button>
                     </div>
-                </div>
-
-                <div className="game-section">
-                    <p className="game-section-label">Тестовый спавн</p>
-                    <button
-                        type="button"
-                        className="game-type-btn"
-                        onClick={() => spawnTestUnit('soldier', 1, 1)}
-                    >
-                        Солдат (1,1)
-                    </button>
-                    <button
-                        type="button"
-                        className="game-type-btn"
-                        onClick={() => spawnTestUnit('bmp', 3, 1)}
-                    >
-                        БМП (3,1)
-                    </button>
-                    <button
-                        type="button"
-                        className="game-type-btn"
-                        onClick={() => spawnTestUnit('soldier', 90, 90)}
-                    >
-                        Солдат (90,90)
-                    </button>
                 </div>
 
                 <div className="game-legend">
