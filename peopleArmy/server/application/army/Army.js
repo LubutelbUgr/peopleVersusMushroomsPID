@@ -1,10 +1,10 @@
-const CONFIG = require("../../config");
+const GLOBAL_CONFIG = require("../../../../global/globalConfig");
 const Soldier = require("./entities/Soldier");
 const BMP = require("./entities/BMP");
 const Sniper = require("./entities/Sniper");
 const Partizan = require("./entities/Partizan");
 
-const { INTERVAL } = CONFIG.ARMY;
+const { INTERVAL } = GLOBAL_CONFIG;
 
 class Army {
     constructor({ guids = {}, startPoint = null, map = null, buildings = [], unitTypes = {}, mapGuid = null, common, callbacks = {}, guid }) {
@@ -26,7 +26,7 @@ class Army {
         this.unitTypes = unitTypes;
 
         this._initMap(map);
-        this._initUnits(startPoint);
+        this._initUnits();
 
         this.interval = setInterval(() => this.update(), INTERVAL); // интервал обновления игры
         this.updated = false;
@@ -61,32 +61,8 @@ class Army {
         this.map = Array.from({ length: 50 }, () => Array.from({ length: 50 }, () => null));
     }
 
-    _initUnits(startPoint) {
-        // [type, maxHp, attackRange] — типы и статы как в mushroomsArmy
-        const specs = [
-            ['sporomet', 8, 12],
-            ['champigneb', 35, 8],
-            ['eblekar', 40, 10],
-            ['pizdoglyad', 2, 6],
-            ['vzryvomor', 70, 5],
-        ];
-        const diagonalPositions = [1, 4, 10, 20, 30, 40, 50, 60, 70, 80, 90];
-        this.enemyUnits = diagonalPositions.map((position, i) => {
-            const [type, maxHp, attackRange] = specs[i % specs.length];
-            return {
-                guid: this.common.guid(),
-                type,
-                x: position,
-                y: position,
-                hp: maxHp,
-                maxHp,
-                isAlive: true,
-                speed: 0,
-                attackRange,
-            };
-        });
-
-        this.callbacks.update(this.guid, this.get());
+    _initUnits() {
+        this.enemyUnits = [];
     }
 
     setVisibility({ units = [], buildings = [] } = {}) {
