@@ -345,8 +345,10 @@ class Army {
         // 2. сходить юнитами
         this.moveUnits();
 
-        this.updated = false;
-        this.callbacks.update(this.guid, this.get());
+        if (this.updated) {
+            this.updated = false;
+            this.callbacks.update(this.guid, this.get());
+        }
     }
 }
 
