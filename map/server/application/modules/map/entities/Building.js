@@ -1,58 +1,45 @@
-const Entity = require("./Entity");
+const Unit = require("./Unit");
 
-class Building extends Entity {
-    constructor({ x, y, type, guid, role, hp = 1, size = 1, sizeX, sizeY, visibility = 1, visible }) {
-        super({ x, y, type });
-        this.guid = guid;
-        this.role = role;
+class Building extends Unit {
+    constructor({ x, y, type, guid, role, size = 1, hp = 1, visibility = 1 }) {
+        super({ x, y, type, guid, role, visibility });
+        this.size = size;
         this.hp = hp;
-        this.sizeX = sizeX ?? size;
-        this.sizeY = sizeY ?? size;
-        this.visibility = visibility ?? visible ?? 1;
     }
 
     get() {
         return {
             ...super.get(),
-            guid: this.guid,
-            role: this.role,
+            size: this.size,
             hp: this.hp,
-            sizeX: this.sizeX,
-            sizeY: this.sizeY,
-            visibility: this.visibility,
         };
     }
 
     getSelf() {
         return {
-            ...this.get(),
+            ...super.getSelf(),
+            size: this.size,
         };
     }
 
     getPos() {
         return {
-            x: [this.x, this.x + this.sizeX],
-            y: [this.y, this.y + this.sizeY]
+            x: [this.x, this.x + this.size],
+            y: [this.y, this.y + this.size]
         }
     }
 
     getVisibleRange() {
         return {
-            x: [this.x - this.visibility, this.x + this.visibility + this.sizeX],
-            y: [this.y - this.visibility, this.y + this.visibility + this.sizeY],
+            x: [this.x - this.visibility, this.x + this.visibility + this.size],
+            y: [this.y - this.visibility, this.y + this.visibility + this.size],
         }
     }
 
-    update({ x, y, type, hp, size, sizeX, sizeY, visibility, visible }) {
+    update({ x, y, hp }) {
         this.x = x;
         this.y = y;
-        if (type !== undefined) this.type = type;
         if (hp !== undefined) this.hp = hp;
-        this.sizeX = sizeX ?? size ?? this.sizeX;
-        this.sizeY = sizeY ?? size ?? this.sizeY;
-        if (visibility !== undefined || visible !== undefined) {
-            this.visibility = visibility ?? visible;
-        }
     }
 }
 
