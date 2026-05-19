@@ -7,8 +7,7 @@ const useGetVisibilityHandler = (mediator, answer, common) => {
         if (!(common.checkGuid(mapGuid) && common.checkGuid(userGuid))) {
             return res.json(answer.bad(3001));
         }
-        const result = mediator.get(GET_VISIBILITY_HANDLER, { mapGuid, userGuid });
-        res.json(result?.result ? result : answer.good(result));
+        res.json(answer.good(mediator.get(GET_VISIBILITY_HANDLER, { mapGuid, userGuid })));
     }
 }
 
