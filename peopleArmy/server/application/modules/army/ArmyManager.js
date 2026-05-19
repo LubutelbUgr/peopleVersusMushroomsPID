@@ -185,10 +185,6 @@ class ArmyManager extends BaseManager {
                 this.SOCKET.START_GAME,
                 this.answer.good({ map })
             );
-            this.army[guid].createUnit({ x: 30, y: 30, type: 'soldier' });
-            this.army[guid].createUnit({ x: 35, y: 30, type: 'bmp' });
-            this.army[guid].createUnit({ x: 30, y: 35, type: 'sniper' });
-            this.army[guid].createUnit({ x: 35, y: 35, type: 'partizan' });
             // Отправить начальное состояние армии сразу после старта
             await this.updateArmyCallback(guid, null);
         }
