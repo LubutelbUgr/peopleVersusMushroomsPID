@@ -1,11 +1,10 @@
 const Entity = require("./Entity");
 
 class Unit extends Entity {
-    constructor({ x, y, type, guid, role, hp = 1, visibility = 1 }) {
+    constructor({ x, y, type, guid, role, visibility = 1 }) {
         super({ x, y, type });
         this.guid = guid;
         this.role = role;
-        this.hp = hp;
         this.visibility = visibility;
     }
 
@@ -13,16 +12,8 @@ class Unit extends Entity {
         return {
             ...super.get(),
             guid: this.guid,
-            role: this.role,
-            hp: this.hp,
-            visibility: this.visibility,
+            role: this.role
         };
-    }
-
-    update({ x, y, hp }) {
-        this.x = x;
-        this.y = y;
-        if (hp !== undefined) this.hp = hp;
     }
     
     getSelf() {

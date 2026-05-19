@@ -1,17 +1,15 @@
 const Unit = require("./Unit");
 
 class Building extends Unit {
-    constructor({ x, y, type, guid, role, size = 1, hp = 1, visibility = 1 }) {
+    constructor({ x, y, type, guid, role, size = 1, visibility = 1 }) {
         super({ x, y, type, guid, role, visibility });
         this.size = size;
-        this.hp = hp;
     }
 
     get() {
         return {
             ...super.get(),
             size: this.size,
-            hp: this.hp,
         };
     }
 
@@ -34,12 +32,6 @@ class Building extends Unit {
             x: [this.x - this.visibility, this.x + this.visibility + this.size],
             y: [this.y - this.visibility, this.y + this.visibility + this.size],
         }
-    }
-
-    update({ x, y, hp }) {
-        this.x = x;
-        this.y = y;
-        if (hp !== undefined) this.hp = hp;
     }
 }
 

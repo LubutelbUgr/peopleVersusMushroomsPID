@@ -141,7 +141,8 @@ class Map {
             return;
         }
         if (unitIndex + 1) {
-            this.units[unitIndex].update(unit);
+            this.units[unitIndex].x = unit.x;
+            this.units[unitIndex].y = unit.y;
         } else {
             // не нашли - добавляем
             this.units.push(
@@ -160,7 +161,8 @@ class Map {
             return;
         }
         if (buildingIndex + 1) {
-            this.buildings[buildingIndex].update(building);
+            this.buildings[buildingIndex].x = building.x;
+            this.buildings[buildingIndex].y = building.y;
         } else {
             // не нашли - добавляем
             this.buildings.push(
