@@ -60,12 +60,10 @@ class Unit {
             x: this.x,
             y: this.y,
             hp: this.hp,
-            maxHp: this.maxHp ?? this.hp,
+            maxHp: this.maxHp,
             speed: this.speed,
             range: this.range,
             visible: this.visible,
-            visibility: this.visible,
-            isAlive: !this.isDead(),
             targetX: this.targetX,
             targetY: this.targetY,
         };
