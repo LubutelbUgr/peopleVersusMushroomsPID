@@ -1,12 +1,8 @@
 import { Unit, EnemyUnit, Projectile } from '../types';
-import { UNIT_SRCS, PEOPLE_UNIT_SRCS, PIZDOGLYAD_SRCS, champignebExplImages, VZRYVOMOR_FRAME_SRCS, SPOROVAYA_BASHNYA_SRCS } from './assets';
+import { UNIT_SRCS, PEOPLE_UNIT_SRCS, PIZDOGLYAD_SRCS, champignebExplImages, vzryvomorExplImages, VZRYVOMOR_FRAME_SRCS, SPOROVAYA_BASHNYA_SRCS } from './assets';
 import { isImageDrawable, tryDrawImageScaled, getBuildingImage } from './buildingRenderer';
-import {
-  getVzryvomorFrameKey,
-  stepVzryvomorAnimation,
-  VZRYVOMOR_FRAME_MS,
-} from './vzryvomorAnimation';
-import { GameState } from '../types';
+import { getVzryvomorFrameKey } from './vzryvomorAnimation';
+import { Building, GameState } from '../types';
 
 const MAX_HP: Record<string, number> = {
   sporomet: 8,
@@ -133,6 +129,76 @@ function drawChampignebExplosions(
   }
 }
 
+const VZRYVOMOR_EXPL_DURATION = 1000;
+const VZRYVOMOR_EXPLOSION_FRAME_COUNT = 5;
+
+const vzryvomorExplosions = new Map<string, { x: number; y: number; startTime: number }>();
+const prevVzryvomorExploding = new Map<string, boolean>();
+const prevVzryvomorHp = new Map<string, number>();
+
+function updateVzryvomorExplosions(buildings: Building[], now: number): void {
+  buildings.forEach(building => {
+    if (building.type !== 'vzryvomor') return;
+    const prevExploding = prevVzryvomorExploding.get(building.guid) ?? false;
+    const prevHp = prevVzryvomorHp.get(building.guid) ?? building.hp;
+    const exploding = building.isExploding === true;
+
+    if (!vzryvomorExplosions.has(building.guid)) {
+      if (exploding && !prevExploding) {
+        vzryvomorExplosions.set(building.guid, { x: building.x, y: building.y, startTime: now });
+      } else if (building.hp <= 0 && prevHp > 0) {
+        vzryvomorExplosions.set(building.guid, { x: building.x, y: building.y, startTime: now });
+      }
+    }
+
+    prevVzryvomorExploding.set(building.guid, exploding);
+    prevVzryvomorHp.set(building.guid, building.hp);
+  });
+}
+
+function isVzryvomorExplosionPlaying(guid: string, now: number): boolean {
+  const entry = vzryvomorExplosions.get(guid);
+  if (!entry) return false;
+  return now - entry.startTime < VZRYVOMOR_EXPL_DURATION;
+}
+
+function drawVzryvomorExplosions(
+  ctx: CanvasRenderingContext2D,
+  cellW: number,
+  cellH: number,
+  now: number
+): void {
+  for (const [guid, entry] of vzryvomorExplosions.entries()) {
+    const elapsed = now - entry.startTime;
+    if (elapsed >= VZRYVOMOR_EXPL_DURATION) {
+      vzryvomorExplosions.delete(guid);
+      prevVzryvomorExploding.delete(guid);
+      prevVzryvomorHp.delete(guid);
+      continue;
+    }
+    const fi = Math.min(
+      Math.floor((elapsed / VZRYVOMOR_EXPL_DURATION) * VZRYVOMOR_EXPLOSION_FRAME_COUNT),
+      VZRYVOMOR_EXPLOSION_FRAME_COUNT - 1
+    );
+    const cx = entry.x * cellW + cellW / 2;
+    const cy = entry.y * cellH + cellH / 2;
+    const size = 24 * Math.min(cellW, cellH);
+    const img = vzryvomorExplImages[fi];
+    if (isImageDrawable(img)) {
+      tryDrawImageScaled(ctx, img, cx - size / 2, cy - size / 2, size, size);
+    } else {
+      const alpha = 1 - elapsed / VZRYVOMOR_EXPL_DURATION;
+      ctx.beginPath();
+      ctx.arc(cx, cy, size / 2, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255,200,0,${alpha * 0.9})`;
+      ctx.fill();
+      ctx.strokeStyle = `rgba(255,60,0,${alpha})`;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+  }
+}
+
 const activeProjectiles = new Map<string, Projectile & { duration: number }>();
 
 function getProjectileDuration(type: Projectile['type']): number {
@@ -192,26 +258,6 @@ function drawProjectiles(
   }
 }
 
-const VZRYVOMOR_FRAME_COUNT = VZRYVOMOR_FRAME_SRCS.length;
-const buildingAnimState: Record<string, { frame: number; lastFrameTime: number }> = {};
-
-function updateVzryvomorAnimation(guid: string, isExploding: boolean): number {
-  const now = Date.now();
-  const { next, frameIndex } = stepVzryvomorAnimation(
-    buildingAnimState[guid],
-    isExploding,
-    now,
-    VZRYVOMOR_FRAME_COUNT,
-    VZRYVOMOR_FRAME_MS
-  );
-  if (next === undefined) {
-    delete buildingAnimState[guid];
-  } else {
-    buildingAnimState[guid] = next;
-  }
-  return frameIndex;
-}
-
 function preloadBuildingImages(): void {
   VZRYVOMOR_FRAME_SRCS.forEach((src, i) => {
     getBuildingImage(getVzryvomorFrameKey(i), src);
@@ -230,11 +276,8 @@ export function drawBuildings(
   cellH: number,
   circularVisibilityMask: boolean[][]
 ): void {
-  const activeVzryvomorGuids = new Set(
-    (state.buildings ?? [])
-      .filter(b => b.type === 'vzryvomor' && b.hp > 0)
-      .map(b => b.guid)
-  );
+  const now = Date.now();
+  updateVzryvomorExplosions(state.buildings ?? [], now);
 
   (state.buildings ?? []).forEach(building => {
     if (building.hp <= 0) return;
@@ -259,9 +302,10 @@ export function drawBuildings(
     const hpPercent = Math.max(0, Math.min(1, building.hp / getMaxHp(building.type)));
 
     if (building.type === 'vzryvomor') {
-      const frameIndex = updateVzryvomorAnimation(building.guid, building.isExploding === true);
-      const fi = Math.max(0, Math.min(frameIndex, VZRYVOMOR_FRAME_COUNT - 1));
-      const vzImg = getBuildingImage(getVzryvomorFrameKey(fi), VZRYVOMOR_FRAME_SRCS[fi]);
+      if (isVzryvomorExplosionPlaying(building.guid, now) || building.isExploding === true) {
+        return;
+      }
+      const vzImg = getBuildingImage(getVzryvomorFrameKey(0), VZRYVOMOR_FRAME_SRCS[0]);
       const barHeight = 4;
       let barX: number, barY: number, barWidth: number;
 
@@ -375,11 +419,7 @@ export function drawBuildings(
     ctx.fillRect(bOffX, bOffY - 6, bw * hpPercent, 4);
   });
 
-  for (const guid of Object.keys(buildingAnimState)) {
-    if (!activeVzryvomorGuids.has(guid)) {
-      delete buildingAnimState[guid];
-    }
-  }
+  drawVzryvomorExplosions(ctx, cellW, cellH, now);
 }
 
 export function drawUnits(
