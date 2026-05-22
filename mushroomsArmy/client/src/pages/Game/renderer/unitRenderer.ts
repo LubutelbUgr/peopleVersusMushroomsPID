@@ -339,7 +339,7 @@ export function drawBuildings(
   updateVzryvomorExplosions(state.buildings ?? [], now);
 
   (state.buildings ?? []).forEach(building => {
-    if (building.hp <= 0) return;
+    if (building.hp <= 0 && !ECONOMY_BUILDING_TYPES.has(building.type)) return;
     const sx = building.sizeX ?? 1;
     const sy = building.sizeY ?? 1;
     let buildingVisibleNow = false;
@@ -454,9 +454,11 @@ export function drawBuildings(
       }
 
       ctx.fillStyle = '#d32f2f';
-      ctx.fillRect(bOffX, bOffY - 6, bw, 4);
-      ctx.fillStyle = '#4caf50';
-      ctx.fillRect(bOffX, bOffY - 6, bw * hpPercent, 4);
+      if (Number.isFinite(hpPercent) && hpPercent > 0) {
+        ctx.fillRect(bOffX, bOffY - 6, bw, 4);
+        ctx.fillStyle = '#4caf50';
+        ctx.fillRect(bOffX, bOffY - 6, bw * hpPercent, 4);
+      }
       return;
     }
 

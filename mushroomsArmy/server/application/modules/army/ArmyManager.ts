@@ -14,8 +14,6 @@ type TMoveUnit = { armyGuid: string; unitGuid: string; x: number; y: number };
 type TGetArmy = string;
 type TSpawnUnit = { armyGuid: string; type: 'sporomet' | 'champigneb' | 'eblekar' | 'pizdoglyad'; x: number; y: number };
 type TSpawnBuildingUnit = { armyGuid: string; type: 'vzryvomor' | 'sporovaya_bashnya'; x: number; y: number };
-type TUpdateEconomyBuildings = { armyGuid: string; buildings: TBuildingInput[] };
-type TUpdateEconomyUnits = { armyGuid: string; units: TBuildingInput[] };
 type TUser = { guid: string; token: string; socketId: string; name: string };
 
 type TVisibleEntity = {
@@ -67,14 +65,6 @@ class ArmyManager extends BaseManager {
 
         this.mediator.set(CONFIG.MEDIATOR.TRIGGERS.SPAWN_BUILDING, (data: unknown) => 
             this.triggerSpawnBuildingUnit(data as TSpawnBuildingUnit)
-        );
-
-        this.mediator.set(CONFIG.MEDIATOR.TRIGGERS.UPDATE_ECONOMY_BUILDINGS, (data: unknown) =>
-            this.triggerUpdateEconomyBuildings(data as TUpdateEconomyBuildings)
-        );
-
-        this.mediator.set(CONFIG.MEDIATOR.TRIGGERS.UPDATE_ECONOMY_UNITS, (data: unknown) =>
-            this.triggerUpdateEconomyUnits(data as TUpdateEconomyUnits)
         );
 
         if (!this.io) return;
@@ -151,22 +141,6 @@ class ArmyManager extends BaseManager {
         if (!army) return null;
 
         return army.spawnBuilding(type, x, y, this.common);
-    }
-
-    private triggerUpdateEconomyBuildings({ armyGuid, buildings }: TUpdateEconomyBuildings): boolean {
-        const army = this.army[armyGuid];
-        if (!army) return false;
-
-        army.setEconomyBuildings(buildings);
-        return true;
-    }
-
-    private triggerUpdateEconomyUnits({ armyGuid, units }: TUpdateEconomyUnits): boolean {
-        const army = this.army[armyGuid];
-        if (!army) return false;
-
-        army.setEconomyUnits(units);
-        return true;
     }
 
     private triggerGetArmyMetrics(armyGuid: string): object | null {
@@ -247,10 +221,15 @@ class ArmyManager extends BaseManager {
             { mapGuid: army.mapGuid, userGuid: army.guid, entities: units }
         );
 
-        await this.send<{ mapGuid: string; userGuid: string; entities: TArmyState['buildings'] }>(
-            `${GLOBAL_CONFIG.MAP.URL}${GLOBAL_CONFIG.URLS.UPDATE_BUILDINGS}`,
-            { mapGuid: army.mapGuid, userGuid: army.guid, entities: ownBuildings }
-        );
+        // Здания отправляем только новые (map использует toggle: повторная отправка удаляет с карты)
+        const newBuildings = ownBuildings.filter(b => !army.sentBuildingGuids.has(b.guid));
+        if (newBuildings.length > 0) {
+            await this.send<{ mapGuid: string; userGuid: string; entities: TArmyState['buildings'] }>(
+                `${GLOBAL_CONFIG.MAP.URL}${GLOBAL_CONFIG.URLS.UPDATE_BUILDINGS}`,
+                { mapGuid: army.mapGuid, userGuid: army.guid, entities: newBuildings }
+            );
+            newBuildings.forEach(b => army.sentBuildingGuids.add(b.guid));
+        }
 
         // Получаем видимых врагов
         const visibility = await this.sendToMap<TVisibilityResponse>(
@@ -260,15 +239,19 @@ class ArmyManager extends BaseManager {
         const visibleEnemyUnits = visibility?.units ?? [];
         const visibleEnemyBuildings = visibility?.buildings ?? [];
 
-        // Типы союзной экономики грибов — не атаковать
-        const ALLIED_ECONOMY_TYPES = new Set([
+        // Типы союзной экономики грибов — отображаем отдельно, не атакуем
+        const ALLIED_ECONOMY_BUILDING_TYPES = new Set([
             'mycelium', 'incubator', 'reactor', 'small_reactor', 'mine',
-            'larva', 'geodezist',
         ]);
+        const ALLIED_ECONOMY_UNIT_TYPES = new Set(['larva', 'geodezist']);
+
+        // Извлекаем здания/юниты экономики из видимости (они на карте рядом с армией)
+        army.economyBuildings = visibleEnemyBuildings.filter(b => ALLIED_ECONOMY_BUILDING_TYPES.has(b.type));
+        army.economyUnits     = visibleEnemyUnits.filter(u => ALLIED_ECONOMY_UNIT_TYPES.has(u.type));
 
         const visibleEnemies: TVisibleEntity[] = [
-            ...visibleEnemyUnits.filter(e => !ALLIED_ECONOMY_TYPES.has(e.type)),
-            ...visibleEnemyBuildings.filter(e => !ALLIED_ECONOMY_TYPES.has(e.type)),
+            ...visibleEnemyUnits.filter(e => !ALLIED_ECONOMY_UNIT_TYPES.has(e.type)),
+            ...visibleEnemyBuildings.filter(e => !ALLIED_ECONOMY_BUILDING_TYPES.has(e.type)),
         ];
 
         const enemyEntities: TBuildingInput[] = visibleEnemies.map(entity => ({
@@ -284,7 +267,7 @@ class ArmyManager extends BaseManager {
         const clientBuildingsByGuid = new Map(
             updatedState.buildings.map(building => [building.guid, building] as const)
         );
-        for (const building of visibleEnemyBuildings.filter(e => !ALLIED_ECONOMY_TYPES.has(e.type))) {
+        for (const building of visibleEnemyBuildings.filter(e => !ALLIED_ECONOMY_BUILDING_TYPES.has(e.type))) {
             clientBuildingsByGuid.set(building.guid, building);
         }
 

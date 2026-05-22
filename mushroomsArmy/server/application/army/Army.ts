@@ -79,6 +79,7 @@ export class Army {
     public enemyBuildings: TBuildingInput[] = [];
     public economyBuildings: TBuildingInput[] = [];
     public economyUnits: TBuildingInput[] = [];
+    public sentBuildingGuids: Set<string> = new Set();
     public projectiles: TProjectile[] = [];
     public callbacks: { 
         update: (guid: string, data: TArmyState) => void; 
@@ -150,28 +151,6 @@ export class Army {
         // Вражеские здания (house, barracks, tower) — в прокси-цели для юнитов
         this.enemyBuildings = initialBuildings.filter(b => b.type !== 'sporovaya_bashnya' && b.type !== 'vzryvomor');
         this.updateEnemyEntities(this.enemyBuildings);
-    }
-
-    public setEconomyBuildings(buildings: TBuildingInput[]): void {
-        for (const b of buildings) {
-            const idx = this.economyBuildings.findIndex(e => e.guid === b.guid);
-            if (idx >= 0) {
-                this.economyBuildings[idx] = b;
-            } else {
-                this.economyBuildings.push(b);
-            }
-        }
-    }
-
-    public setEconomyUnits(units: TBuildingInput[]): void {
-        for (const u of units) {
-            const idx = this.economyUnits.findIndex(e => e.guid === u.guid);
-            if (idx >= 0) {
-                this.economyUnits[idx] = u;
-            } else {
-                this.economyUnits.push(u);
-            }
-        }
     }
 
     /** Синхронизирует урон по proxy-цели с локальным списком зданий врага */
