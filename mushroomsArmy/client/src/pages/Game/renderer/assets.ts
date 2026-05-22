@@ -73,6 +73,9 @@ import waterInnerCornerBottomLeft from '../../../assets/map/water-edges/innerCor
 import waterInnerCornerBottomRight from '../../../assets/map/water-edges/innerCorner-br.webp';
 
 import bushImgSrc from '../../../assets/map/decoration/bushbush.webp';
+import economySpritesSrc from '../../../assets/economy_sprites.png';
+
+export { economySpritesSrc };
 
 export const UNIT_SRCS: Record<string, string> = {
   sporomet: sporometSrc,

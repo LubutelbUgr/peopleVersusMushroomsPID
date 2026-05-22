@@ -1,5 +1,5 @@
-import { Unit, EnemyUnit, Projectile } from '../types';
-import { UNIT_SRCS, PEOPLE_UNIT_SRCS, PIZDOGLYAD_SRCS, champignebExplImages, vzryvomorExplImages, VZRYVOMOR_FRAME_SRCS, SPOROVAYA_BASHNYA_SRCS } from './assets';
+import { Unit, EnemyUnit, Projectile, EconomyUnit } from '../types';
+import { UNIT_SRCS, PEOPLE_UNIT_SRCS, PIZDOGLYAD_SRCS, champignebExplImages, vzryvomorExplImages, VZRYVOMOR_FRAME_SRCS, SPOROVAYA_BASHNYA_SRCS, economySpritesSrc } from './assets';
 import { isImageDrawable, tryDrawImageScaled, getBuildingImage } from './buildingRenderer';
 import { getVzryvomorFrameKey } from './vzryvomorAnimation';
 import { Building, GameState } from '../types';
@@ -24,14 +24,73 @@ const PEOPLE_UNIT_COLORS: Record<string, { fill: string; stroke: string }> = {
   partizan: { fill: '#22c55e', stroke: '#bbf7d0' },
 };
 
+const ECONOMY_BUILDING_TYPES = new Set([
+  'mycelium', 'incubator', 'reactor', 'small_reactor', 'mine',
+]);
+
+// Спрайт-лист экономики: 32×32 пикселя на спрайт, 32 спрайта в строке (1-индексированные)
+const ECONOMY_SPRITE_SIZE = 32;
+const ECONOMY_SPRITES_PER_ROW = 32;
+
+function getEconomySpriteCoords(spriteNo: number): [number, number, number] {
+  const y = Math.trunc(spriteNo / ECONOMY_SPRITES_PER_ROW) * ECONOMY_SPRITE_SIZE;
+  const x = (spriteNo % ECONOMY_SPRITES_PER_ROW - 1) * ECONOMY_SPRITE_SIZE;
+  return [x, y, ECONOMY_SPRITE_SIZE];
+}
+
+const ECONOMY_SPRITE_NUM: Record<string, number> = {
+  mycelium:     4, // level 1; levels 2 and 3 use 5 and 6
+  small_reactor: 8,
+  reactor:      8,
+  incubator:    11,
+  mine:         14,
+  larva:        10,
+  geodezist:    12,
+};
+
+/** Для грибниц спрайт зависит от уровня (1→4, 2→5, 3→6) */
+function getEconomyBuildingSpriteNum(type: string, level?: number): number {
+  if (type === 'mycelium') {
+    const lvl = level ?? 1;
+    return lvl <= 1 ? 4 : lvl === 2 ? 5 : 6;
+  }
+  return ECONOMY_SPRITE_NUM[type] ?? 4;
+}
+
+let economySpritesImage: HTMLImageElement | null = null;
+function getEconomySpritesImage(): HTMLImageElement {
+  if (!economySpritesImage) {
+    economySpritesImage = new Image();
+    economySpritesImage.src = economySpritesSrc;
+  }
+  return economySpritesImage;
+}
+
+function drawEconomySprite(
+  ctx: CanvasRenderingContext2D,
+  spriteNo: number,
+  dx: number,
+  dy: number,
+  dw: number,
+  dh: number
+): boolean {
+  const img = getEconomySpritesImage();
+  if (!isImageDrawable(img)) return false;
+  const [sx, sy, sSize] = getEconomySpriteCoords(spriteNo);
+  try {
+    ctx.drawImage(img, sx, sy, sSize, sSize, dx, dy, dw, dh);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const ECONOMY_BUILDING_CONFIG: Record<string, { label: string; color: string }> = {
-  mycelium: { label: 'Г', color: '#ec4899' },
-  incubator: { label: 'И', color: '#a855f7' },
-  small_bioreactor: { label: 'Р', color: '#06b6d4' },
-  big_bioreactor: { label: 'БР', color: '#3b82f6' },
-  fat_barrel: { label: 'Б', color: '#f97316' },
-  iron_barrel: { label: 'Ж', color: '#6b7280' },
-  mine: { label: 'Ш', color: '#eab308' },
+  mycelium:     { label: 'Г',  color: '#ec4899' },
+  incubator:    { label: 'И',  color: '#a855f7' },
+  reactor:      { label: 'БР', color: '#3b82f6' },
+  small_reactor:{ label: 'Р',  color: '#06b6d4' },
+  mine:         { label: 'Ш',  color: '#eab308' },
 };
 
 export const getMaxHp = (type: string): number => MAX_HP[type] ?? 100;
@@ -294,7 +353,7 @@ export function drawBuildings(
         }
       }
     }
-    const isFriendly = building.type === 'vzryvomor' || building.type === 'sporovaya_bashnya';
+    const isFriendly = building.type === 'vzryvomor' || building.type === 'sporovaya_bashnya' || ECONOMY_BUILDING_TYPES.has(building.type);
     if (!buildingVisibleNow && !isFriendly) return;
 
     const bx = building.x * cellW;
@@ -378,18 +437,21 @@ export function drawBuildings(
       const bOffX = bx - bw / 2 + cellW / 2;
       const bOffY = by - bh / 2 + cellH / 2;
 
-      ctx.fillStyle = economyBuilding.color;
-      ctx.fillRect(bOffX, bOffY, bw, bh);
+      const spriteNo = getEconomyBuildingSpriteNum(building.type, building.level);
+      const drawnSprite = spriteNo !== undefined && drawEconomySprite(ctx, spriteNo, bOffX, bOffY, bw, bh);
 
-      ctx.strokeStyle = '#4c1d95';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(bOffX, bOffY, bw, bh);
-
-      ctx.fillStyle = '#ffffff';
-      ctx.font = `bold ${Math.max(8, cellW * 0.32)}px Arial`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(economyBuilding.label, bx + cellW / 2, by + cellH / 2);
+      if (!drawnSprite) {
+        ctx.fillStyle = economyBuilding.color;
+        ctx.fillRect(bOffX, bOffY, bw, bh);
+        ctx.strokeStyle = '#4c1d95';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(bOffX, bOffY, bw, bh);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${Math.max(8, cellW * 0.32)}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(economyBuilding.label, bx + cellW / 2, by + cellH / 2);
+      }
 
       ctx.fillStyle = '#d32f2f';
       ctx.fillRect(bOffX, bOffY - 6, bw, 4);
@@ -557,4 +619,56 @@ export function drawProjectileLayer(
   circularVisibilityMask: boolean[][]
 ): void {
   drawProjectiles(ctx, state.projectiles ?? [], cellW, cellH, circularVisibilityMask, Date.now());
+}
+
+const ECONOMY_UNIT_CONFIG: Record<string, { label: string; fill: string; stroke: string }> = {
+  larva:     { label: 'Л', fill: '#86efac', stroke: '#22c55e' },
+  geodezist: { label: 'Г', fill: '#fde68a', stroke: '#f59e0b' },
+};
+
+export function drawEconomyUnits(
+  ctx: CanvasRenderingContext2D,
+  units: EconomyUnit[],
+  cellW: number,
+  cellH: number
+): void {
+  if (!units || units.length === 0) return;
+
+  units.forEach(unit => {
+    if (unit.hp <= 0) return;
+
+    const cx = unit.x * cellW + cellW / 2;
+    const cy = unit.y * cellH + cellH / 2;
+    const radius = Math.min(cellW, cellH) * 0.3;
+    const size = radius * 2;
+
+    const spriteNo = ECONOMY_SPRITE_NUM[unit.type];
+    if (spriteNo !== undefined) {
+      if (!drawEconomySprite(ctx, spriteNo, cx - size / 2, cy - size / 2, size, size)) {
+        const cfg = ECONOMY_UNIT_CONFIG[unit.type];
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.fillStyle = cfg?.fill ?? '#a3e635';
+        ctx.fill();
+        ctx.strokeStyle = cfg?.stroke ?? '#65a30d';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        if (cfg) {
+          ctx.fillStyle = '#1a1a1a';
+          ctx.font = `bold ${Math.max(7, radius * 0.9)}px Arial`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(cfg.label, cx, cy);
+        }
+      }
+    } else {
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.fillStyle = '#a3e635';
+      ctx.fill();
+      ctx.strokeStyle = '#65a30d';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  });
 }

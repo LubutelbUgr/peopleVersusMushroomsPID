@@ -10,7 +10,7 @@ import {
 } from './fogOfWar';
 import { coerceTerrainCell } from './fogOfWar';
 import { drawTerrainCell, drawGridFogAware } from './terrainRenderer';
-import { drawBuildings, drawUnits, drawEnemyUnits, drawProjectileLayer } from './unitRenderer';
+import { drawBuildings, drawUnits, drawEnemyUnits, drawProjectileLayer, drawEconomyUnits } from './unitRenderer';
 
 interface IInitializableCanvas extends HTMLCanvasElement {
     __cameraInitialized?: boolean;
@@ -94,6 +94,7 @@ export function drawGame(
   drawProjectileLayer(ctx, state, cellW, cellH, circularVisibilityMask);
   drawEnemyUnits(ctx, state.enemyUnits ?? [], cellW, cellH, circularVisibilityMask);
   drawUnits(ctx, state.units, cellW, cellH, circularVisibilityMask);
+  drawEconomyUnits(ctx, state.economyUnits ?? [], cellW, cellH);
 
   ctx.restore();
 }

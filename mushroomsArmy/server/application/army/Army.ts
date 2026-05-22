@@ -18,6 +18,7 @@ export type TBuildingInput = {
     x: number;
     y: number;
     hp?: number;
+    level?: number;
     attackRange?: number;
     sizeX?: number;
     sizeY?: number;
@@ -62,6 +63,7 @@ export type TArmyState = {
     units: TUnitState[];
     enemyUnits: TUnitState[];
     buildings: TBuildingState[];
+    economyUnits: TBuildingInput[];
     slimePuddles: TSlimePuddle[];
     projectiles: TProjectile[];
     formation: TFormationState | null;
@@ -76,6 +78,7 @@ export class Army {
     public enemyUnits: Unit[] = [];
     public enemyBuildings: TBuildingInput[] = [];
     public economyBuildings: TBuildingInput[] = [];
+    public economyUnits: TBuildingInput[] = [];
     public projectiles: TProjectile[] = [];
     public callbacks: { 
         update: (guid: string, data: TArmyState) => void; 
@@ -150,7 +153,25 @@ export class Army {
     }
 
     public setEconomyBuildings(buildings: TBuildingInput[]): void {
-        this.economyBuildings = [...buildings];
+        for (const b of buildings) {
+            const idx = this.economyBuildings.findIndex(e => e.guid === b.guid);
+            if (idx >= 0) {
+                this.economyBuildings[idx] = b;
+            } else {
+                this.economyBuildings.push(b);
+            }
+        }
+    }
+
+    public setEconomyUnits(units: TBuildingInput[]): void {
+        for (const u of units) {
+            const idx = this.economyUnits.findIndex(e => e.guid === u.guid);
+            if (idx >= 0) {
+                this.economyUnits[idx] = u;
+            } else {
+                this.economyUnits.push(u);
+            }
+        }
     }
 
     /** Синхронизирует урон по proxy-цели с локальным списком зданий врага */
@@ -355,6 +376,7 @@ export class Army {
                 ...this.enemyBuildings.map(b => ({ ...b, hp: b.hp ?? 0 })),
                 ...this.economyBuildings.map(b => ({ ...b, hp: b.hp ?? 0 })),
             ],
+            economyUnits: this.economyUnits,
             slimePuddles: this.units
                 .filter(u => u.type === 'champigneb' && !u.isAlive)
                 .map(u => (u as unknown as Champigneb).slimePuddle),
