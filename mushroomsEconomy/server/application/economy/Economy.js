@@ -296,7 +296,10 @@ class Economy {
     // 1. вырасти грибочки
     myceliumGrowAll() {
         this.buildings.mycelium.forEach(mycelium => {
-            if (mycelium.update()) this.updated = true;
+            if (mycelium.update()) {
+                this.updated = true;
+                this.updatedBuildings.push(mycelium.get()); // уведомить о смене уровня
+            }
         });
     }
 

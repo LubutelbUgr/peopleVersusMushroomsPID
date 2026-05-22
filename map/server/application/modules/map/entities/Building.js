@@ -1,15 +1,17 @@
 const Unit = require("./Unit");
 
 class Building extends Unit {
-    constructor({ x, y, type, guid, role, size = 1, visibility = 1 }) {
+    constructor({ x, y, type, guid, role, size = 1, visibility = 1, level }) {
         super({ x, y, type, guid, role, visibility });
         this.size = size;
+        this.level = level;
     }
 
     get() {
         return {
             ...super.get(),
             size: this.size,
+            ...(this.level !== undefined ? { level: this.level } : {}),
         };
     }
 
