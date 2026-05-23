@@ -238,38 +238,55 @@ export class FormationPlanner {
         return positions;
     }
 
-    public buildAttackSemicircle(counts: FormationUnitCounts, centerX: number, centerY: number,): Record<FormationUnitType, FormationSlotPos[]> {
+    public buildAttackSemicircle(
+        counts: FormationUnitCounts,
+        centerX: number,
+        centerY: number,
+    ): Record<FormationUnitType, FormationSlotPos[]> {
         const result: Record<FormationUnitType, FormationSlotPos[]> = {
             champigneb: [], sporomet: [], eblekar: [],
         };
-        const R_FRONT = 15;  // шампиньебы — дальняя дуга
-        const R_MID   = 10;   // спорометы
-        const R_BACK  = 7;   // еблекари
 
-        const ATTACK_ANGLE = (225 * Math.PI) / 180; 
+        // Направление к врагу от центра полукруга
+        const dx = centerX - this._center.x;
+        const dy = centerY - this._center.y;
+        const norm = Math.sqrt(dx * dx + dy * dy) || 1;
+        // Базовый угол — в сторону врага
+        const ATTACK_ANGLE = Math.atan2(dy / norm, dx / norm);
 
-        const arcSlots = (r: number, n: number, spreadRad = Math.PI): FormationSlotPos[] => {
+        // Шампиньебы — передняя дуга
+        const R_FRONT = 18;
+        // Спорометы — средняя дуга
+        const R_MID = 10;
+        // Еблекари
+        const R_BACK = 5;
+
+        const arcSlots = (
+            r: number,
+            n: number,
+            spreadRad: number,
+            offsetAngle = 0,
+        ): FormationSlotPos[] => {
+            if (n === 0) return [];
             const slots: FormationSlotPos[] = [];
             for (let i = 0; i < n; i++) {
                 const t = n > 1 ? (i / (n - 1) - 0.5) * spreadRad : 0;
-                const angle = ATTACK_ANGLE + t;
-                const x = Math.round(centerX + r * Math.cos(angle));
-                const y = Math.round(centerY + r * Math.sin(angle));
+                const angle = ATTACK_ANGLE + offsetAngle + t;
+                const x = Math.round(this._center.x + r * Math.cos(angle));
+                const y = Math.round(this._center.y + r * Math.sin(angle));
                 if (x >= 0 && y >= 0 && x < this.mapCols && y < this.mapRows) {
                     if (this.isWalkable(x, y)) slots.push({ x, y });
                 }
             }
             return slots;
-        };
+    };
 
-        result.champigneb = arcSlots(R_FRONT, counts.champigneb ?? 0, Math.PI);
-        result.sporomet   = arcSlots(R_MID,   counts.sporomet   ?? 0, Math.PI * 0.8);
+    result.champigneb = arcSlots(R_FRONT, counts.champigneb ?? 0, Math.PI * 0.9);
+    result.sporomet   = arcSlots(R_MID,   counts.sporomet   ?? 0, Math.PI * 0.7);
+    result.eblekar    = arcSlots(R_BACK,  counts.eblekar    ?? 0, Math.PI * 0.25, Math.PI);
 
-        result.eblekar    = arcSlots(R_BACK,  counts.eblekar    ?? 0, Math.PI * 0.4);
-
-        return result;
-    }
-
+    return result;
+}
     private isWalkable(x: number, y: number): boolean {
         const tile = this.map[y]?.[x];
         return tile != null && WALKABLE_TILES.has(tile);
