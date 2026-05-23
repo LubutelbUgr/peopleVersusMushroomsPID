@@ -56,6 +56,7 @@ class Unit {
     public hp: number;
     public baseHp: number;
     public speed: number;
+    private _currentSpeed: number;
     public x: number;
     public y: number;
     public visibility: number;
@@ -91,6 +92,7 @@ class Unit {
         this.hp = hp ?? 0;
         this.baseHp = hp ?? 0;
         this.speed = speed ?? 0;
+        this._currentSpeed = speed ?? 0;
         this.attackRange = attackRange ?? 0;
         this.visibility = visibility ?? 1;
         this.projectiles = projectiles;
