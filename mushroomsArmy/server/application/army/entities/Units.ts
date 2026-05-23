@@ -56,10 +56,10 @@ class Unit {
     public hp: number;
     public baseHp: number;
     public speed: number;
-    private _currentSpeed: number;
     public x: number;
     public y: number;
     public visibility: number;
+    private _currentSpeed: number;
     public targetX: number;
     public targetY: number;
     public isAlive: boolean;
@@ -202,13 +202,20 @@ class Unit {
         return true;
     }
 
+    public set currentSpeed(value: number) {
+        this._currentSpeed = value;
+    }
+
+    public get currentSpeed(): number {
+        return this._currentSpeed;
+    }
+
     protected moveTo(targetX: number, targetY: number, map: TMap, deltaTime: number): void {
         if (!this.isAlive) return;
-
+        
         this.calculateUnitPath(map);
-
-        // Цикл позволяет быстрым юнитам (Pizdoglyad) пройти несколько точек пути за один тик.
-        let remaining = this.speed * deltaTime;
+        
+        let remaining = this._currentSpeed * deltaTime;
         while (remaining > 0 && this.path.length > 0) {
             const next = this.path[0];
             const dx = (next.x + 0.5) - this.x;
@@ -307,6 +314,7 @@ class Unit {
         this.isAlive = false;
         this.onDeath();
     }
+    
     
     getState(): TUnitState {
         return {
