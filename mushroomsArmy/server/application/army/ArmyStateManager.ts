@@ -105,6 +105,8 @@ export class ArmyStateManager {
     private updateInterval?: NodeJS.Timeout;
     private readonly UPDATE_RATE = 200; // мс
 
+    private knownUnitGuids: Set<string> = new Set();
+
     constructor(options: ArmyStateManagerOptions) {
         this.army = options.army;
         this.common = options.common;
@@ -127,10 +129,40 @@ export class ArmyStateManager {
         this.updateBuildingMetrics();
         this.updateMode();
         this.updateFormationAndWalls();
+        this.assignNewUnitsToFormation(); 
         this.updateScouts();
         this.updateDistanceTraveled();
         this.processAutoBuild();
     }
+
+    private assignNewUnitsToFormation(): void {
+    for (const guid of this.knownUnitGuids) {
+        const unit = this.army.units.find(u => u.guid === guid);
+        if (!unit || !unit.isAlive) this.knownUnitGuids.delete(guid);
+    }
+
+    for (const u of this.army.units) {
+        if (u.isAlive) this.knownUnitGuids.add(u.guid);
+    }
+
+    if (this.metrics.currentMode !== 'attack') return;
+
+    const planner = this.ensureFormationPlanner();
+    if (!planner) return;
+
+    const RALLY_OFFSET = 12;
+    const rallyX = planner.center.x - RALLY_OFFSET;
+    const rallyY = planner.center.y - RALLY_OFFSET;
+
+    for (const u of this.army.units) {
+        if (!u.isAlive) continue;
+        if (u.type !== 'sporomet' && u.type !== 'eblekar' && u.type !== 'champigneb') continue;
+
+        if (!u.formationTarget) {
+            u.formationTarget = { x: rallyX, y: rallyY };
+        }
+    }
+}
 
     // Тик-логика формации: counts → планнер → stable assign → wall trigger.
     // Семантика — spec/formation.md.
@@ -157,7 +189,7 @@ export class ArmyStateManager {
                 u => u.type === 'sporomet' || u.type === 'eblekar' || u.type === 'champigneb'
             );
 
-            const RALLY_RADIUS = 15;
+            const RALLY_RADIUS = 30;
             const rallied = combat.filter(u => {
                 const dx = u.x - rallyX, dy = u.y - rallyY;
                 return Math.sqrt(dx*dx + dy*dy) <= RALLY_RADIUS;
