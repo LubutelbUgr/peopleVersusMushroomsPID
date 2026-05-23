@@ -238,6 +238,38 @@ export class FormationPlanner {
         return positions;
     }
 
+    public buildAttackSemicircle(counts: FormationUnitCounts, centerX: number, centerY: number,): Record<FormationUnitType, FormationSlotPos[]> {
+        const result: Record<FormationUnitType, FormationSlotPos[]> = {
+            champigneb: [], sporomet: [], eblekar: [],
+        };
+        const R_FRONT = 10;  // шампиньебы — дальняя дуга
+        const R_MID   = 6;   // спорометы
+        const R_BACK  = 3;   // еблекари
+
+        const ATTACK_ANGLE = (225 * Math.PI) / 180; 
+
+        const arcSlots = (r: number, n: number, spreadRad = Math.PI): FormationSlotPos[] => {
+            const slots: FormationSlotPos[] = [];
+            for (let i = 0; i < n; i++) {
+                const t = n > 1 ? (i / (n - 1) - 0.5) * spreadRad : 0;
+                const angle = ATTACK_ANGLE + t;
+                const x = Math.round(centerX + r * Math.cos(angle));
+                const y = Math.round(centerY + r * Math.sin(angle));
+                if (x >= 0 && y >= 0 && x < this.mapCols && y < this.mapRows) {
+                    if (this.isWalkable(x, y)) slots.push({ x, y });
+                }
+            }
+            return slots;
+        };
+
+        result.champigneb = arcSlots(R_FRONT, counts.champigneb ?? 0, Math.PI);
+        result.sporomet   = arcSlots(R_MID,   counts.sporomet   ?? 0, Math.PI * 0.8);
+
+        result.eblekar    = arcSlots(R_BACK,  counts.eblekar    ?? 0, Math.PI * 0.4);
+
+        return result;
+    }
+
     private isWalkable(x: number, y: number): boolean {
         const tile = this.map[y]?.[x];
         return tile != null && WALKABLE_TILES.has(tile);
