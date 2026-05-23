@@ -146,6 +146,49 @@ export class ArmyStateManager {
             else if (u.type === 'champigneb') counts.champigneb++;
         }
 
+        // Режим Атаки
+        if (this.metrics.currentMode === 'attack') {
+            const RALLY_OFFSET = 12;
+            const rallyX = planner.center.x - RALLY_OFFSET;
+            const rallyY = planner.center.y - RALLY_OFFSET;
+
+            const combat = aliveUnits.filter(
+                u => u.type === 'sporomet' || u.type === 'eblekar' || u.type === 'champigneb'
+            );
+
+            const RALLY_RADIUS = 15;
+            const rallied = combat.filter(u => {
+                const dx = u.x - rallyX, dy = u.y - rallyY;
+                return Math.sqrt(dx*dx + dy*dy) <= RALLY_RADIUS;
+            });
+            const rallyRatio = combat.length > 0 ? rallied.length / combat.length : 0;
+
+            if (rallyRatio < 0.6) {
+                for (const u of combat) {
+                    u.formationTarget = { x: rallyX, y: rallyY };
+                }
+                this.syncGroupSpeed(combat);
+                return;
+            }
+
+            const avgX = combat.reduce((s, u) => s + u.x, 0) / combat.length;
+            const avgY = combat.reduce((s, u) => s + u.y, 0) / combat.length;
+            const nearestEnemy = this.findNearestEnemy(avgX, avgY);
+
+            const targetX = nearestEnemy?.x ?? rallyX;
+            const targetY = nearestEnemy?.y ?? rallyY;
+
+            const slots = planner.buildAttackSemicircle(counts, targetX, targetY);
+            this.assignFormationTargets(slots);
+            this.syncGroupSpeed(combat);
+            return;
+        }
+
+        // Обычный режим
+        for (const u of aliveUnits) {
+            u.currentSpeed = u.speed;
+        }
+
         const slots = planner.updateForCounts(counts);
         this.assignFormationTargets(slots);
 
@@ -167,6 +210,43 @@ export class ArmyStateManager {
             for (const pos of newWallPositions) {
                 this.army.spawnBuilding('vzryvomor', pos.x, pos.y, this.common);
             }
+        }
+    }
+
+    private findNearestEnemy(fromX: number,fromY: number,): { x: number; y: number } | null {
+        const targets: { x: number; y: number }[] = [
+            ...this.army.enemyUnits.filter(u => u.isAlive),
+            ...this.army.enemyBuildings.filter(b => (b.hp ?? 1) > 0),
+        ];
+
+        if (targets.length === 0) return null;
+
+        let nearest: { x: number; y: number } | null = null;
+        let nearestDist = Infinity;
+
+        for (const t of targets) {
+            const dx = t.x - fromX;
+            const dy = t.y - fromY;
+            const dist = dx*dx + dy*dy;
+            if (dist < nearestDist) {
+                nearestDist = dist;
+                nearest = { x: t.x, y: t.y };
+            }
+        }
+
+        return nearest;
+    }
+
+        private syncGroupSpeed(units: { type: string; isAlive: boolean; speed: number; currentSpeed: number }[]): void {
+        const combat = units.filter(
+            u => u.isAlive &&
+                (u.type === 'sporomet' || u.type === 'eblekar' || u.type === 'champigneb')
+        );
+        if (combat.length === 0) return;
+
+        const minSpeed = combat.reduce((m, u) => Math.min(m, u.speed), Infinity);
+        for (const u of combat) {
+            u.currentSpeed = minSpeed;
         }
     }
 
