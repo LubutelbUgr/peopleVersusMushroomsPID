@@ -59,10 +59,22 @@ const Minimap: React.FC<MinimapProps> = ({ gameState, camera }) => {
 
   // Точки юнитов и зданий для отображения поверх ландшафта
   const dots = useMemo(() => {
-    if (!gameState) return [];
-    const rows = gameState.map?.length || 100;
-    const cols = gameState.map?.[0]?.length || 100;
+    if (!gameState?.map?.length) return [];
+    const map = gameState.map;
+    const rows = map.length;
+    const cols = map[0]?.length || 100;
     const clamp = (v: number) => Math.max(0, Math.min(100, v));
+
+    syncExplorationMemory(map);
+    const visibilityMask = buildCircularVisibilityMask(gameState, rows, cols);
+
+    /** Клетка сейчас в тумане войны (как на основной карте), а не только «разведана». */
+    const isCurrentlyVisible = (x: number, y: number): boolean => {
+      const tx = Math.floor(x);
+      const ty = Math.floor(y);
+      if (visibilityMask[ty]?.[tx] !== true) return false;
+      return coerceTerrainCell(map[ty]?.[tx]) !== null;
+    };
 
     const unitDots = gameState.units
       .filter((u) => u.hp > 0)
@@ -74,7 +86,12 @@ const Minimap: React.FC<MinimapProps> = ({ gameState, camera }) => {
       }));
 
     const enemyUnitDots = (gameState.enemyUnits ?? [])
-      .filter((u) => PEOPLE_ARMY_UNIT_TYPES.has(u.type) && isAliveEntity(u.hp))
+      .filter(
+        (u) =>
+          PEOPLE_ARMY_UNIT_TYPES.has(u.type) &&
+          isAliveEntity(u.hp) &&
+          isCurrentlyVisible(u.x, u.y),
+      )
       .map((u) => ({
         guid: `enemy-unit-${u.guid}`,
         color: ENEMY_DOT_COLOR,
@@ -84,7 +101,15 @@ const Minimap: React.FC<MinimapProps> = ({ gameState, camera }) => {
       }));
 
     const buildingDots = gameState.buildings
-      .filter((b) => b.hp > 0 && b.isAlive !== false)
+      .filter((b) => {
+        if (b.hp <= 0 || b.isAlive === false) return false;
+        const centerX = b.x + (b.sizeX ?? 1) / 2;
+        const centerY = b.y + (b.sizeY ?? 1) / 2;
+        const isOwn = ownBuildingTypes.includes(b.type);
+        const isEconomy = economyBuildingTypes.includes(b.type);
+        if (isOwn || isEconomy) return true;
+        return isCurrentlyVisible(centerX, centerY);
+      })
       .map((b) => ({
         guid: b.guid,
         color: ownBuildingTypes.includes(b.type)
