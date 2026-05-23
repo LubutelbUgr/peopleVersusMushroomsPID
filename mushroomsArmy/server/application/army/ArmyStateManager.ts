@@ -317,7 +317,7 @@ private buildMarchSemicircle(
     
     const champSlots = arcSlots(8, counts.champigneb, Math.PI * 0.8);
     const sporSlots = arcSlots(4, counts.sporomet, Math.PI * 0.7);
-    const eblSlots = arcSlots(3, counts.eblekar, Math.PI * 0.2, Math.PI);
+    const eblSlots = arcSlots(4, counts.eblekar, Math.PI * 0.7, Math.PI);
 
     return { champigneb: champSlots, sporomet: sporSlots, eblekar: eblSlots };
 }
