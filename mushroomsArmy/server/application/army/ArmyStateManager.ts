@@ -138,6 +138,7 @@ export class ArmyStateManager {
         const planner = this.ensureFormationPlanner();
         if (!planner) return;
 
+        const aliveUnits = this.army.units.filter(u => u.isAlive);
         const counts = { sporomet: 0, eblekar: 0, champigneb: 0 };
         for (const u of this.army.units) {
             if (!u.isAlive) continue;
