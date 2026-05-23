@@ -242,9 +242,9 @@ export class FormationPlanner {
         const result: Record<FormationUnitType, FormationSlotPos[]> = {
             champigneb: [], sporomet: [], eblekar: [],
         };
-        const R_FRONT = 10;  // шампиньебы — дальняя дуга
-        const R_MID   = 6;   // спорометы
-        const R_BACK  = 3;   // еблекари
+        const R_FRONT = 15;  // шампиньебы — дальняя дуга
+        const R_MID   = 10;   // спорометы
+        const R_BACK  = 7;   // еблекари
 
         const ATTACK_ANGLE = (225 * Math.PI) / 180; 
 
