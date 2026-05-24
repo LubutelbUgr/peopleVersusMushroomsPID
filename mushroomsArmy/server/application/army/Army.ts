@@ -1,12 +1,13 @@
 import Common from "../modules/common/Common";
-import Champigneb from "./entities/Champigneb/Champigneb";
+import Champigneb, { TSlimePuddle } from "./entities/Champigneb/Champigneb";
 import Eblekar from "./entities/Eblekar/Eblekar";
-import Pizdoglyad from "./entities/Pizdoglyad/Pizdoglyad";
 import Sporomet from "./entities/Sporomet/Sporomet";
+import Pizdoglyad from "./entities/Pizdoglyad/Pizdoglyad";
 import SporovayaBashnya from "./entities/SporovayaBashnya/SporovayaBashnya";
 import Unit, { TProjectile, TUnitState } from "./entities/Units";
 import { IBuilding, Vzryvomor } from "./entities/Vzryvomor/Vzryvomor";
-import type { TFormationState } from './ArmyStateManager';
+import { ArmyStateManager, ArmyMode, ArmyMetrics, ScoutTracker, TFormationState } from './ArmyStateManager';
+import { EconomyRequest, EconomyResponse } from './ArmyStateManager';
 
 
 export type TMap = (number | null)[][];
@@ -17,7 +18,6 @@ export type TBuildingInput = {
     x: number;
     y: number;
     hp?: number;
-    level?: number;
     attackRange?: number;
     sizeX?: number;
     sizeY?: number;
@@ -47,18 +47,21 @@ export type TArmyOptions = {
     buildings: TBuildingInput[];
     guid: string;
     common: Common;
-    callbacks: {
-        update: (guid: string, data: TArmyState) => void;
+    callbacks: { 
+        update: (guid: string, data: TArmyState) => void; 
         takeDamage?: (unitGuid: string, amount: number) => void;
+        onModeChange?: (mode: ArmyMode) => void;
+        onDistanceMilestone?: (distance: number) => void;
+        onScoutRespawn?: (scoutGuid: string) => void;
     };
+    economyRequestCallback?: (request: EconomyRequest) => Promise<EconomyResponse | null>;
 };
 
 export type TArmyState = {
     map: TMap;
     units: TUnitState[];
-    enemyUnits: TUnitState[];
     buildings: TBuildingState[];
-    economyUnits: TBuildingInput[];
+    slimePuddles: TSlimePuddle[];
     projectiles: TProjectile[];
     formation: TFormationState | null;
 }
@@ -72,14 +75,17 @@ export class Army {
     public enemyUnits: Unit[] = [];
     public enemyBuildings: TBuildingInput[] = [];
     public economyBuildings: TBuildingInput[] = [];
-    public economyUnits: TBuildingInput[] = [];
-    public sentBuildingGuids: Set<string> = new Set();
     public projectiles: TProjectile[] = [];
-    public callbacks: {
-        update: (guid: string, data: TArmyState) => void;
+    public callbacks: { 
+        update: (guid: string, data: TArmyState) => void; 
         takeDamage?: (unitGuid: string, amount: number) => void;
+        onModeChange?: (mode: ArmyMode) => void;
+        onDistanceMilestone?: (distance: number) => void;
+        onScoutRespawn?: (scoutGuid: string) => void;
     };
     private intervalId: NodeJS.Timeout;
+    
+    private stateManager: ArmyStateManager;
 
     constructor(options: TArmyOptions) {
         this.map = options.map;
@@ -87,11 +93,34 @@ export class Army {
         this.guid = options.guid;
         this.callbacks = options.callbacks;
         this.create(options.common, options.buildings);
+        
+        this.stateManager = new ArmyStateManager({
+            army: this,
+            common: options.common,
+            onModeChange: options.callbacks.onModeChange,
+            onDistanceMilestone: options.callbacks.onDistanceMilestone,
+            onScoutRespawn: options.callbacks.onScoutRespawn,
+            economyRequestCallback: options.economyRequestCallback,
+        });
+        
         this.intervalId = setInterval(() => this.update(), 200);
     }
 
     public destructor(): void {
         clearInterval(this.intervalId);
+        this.stateManager.destroy(); 
+    }
+
+    public getMetrics(): Readonly<ArmyMetrics> {
+        return this.stateManager.getMetrics();
+    }
+
+    public getScouts(): ScoutTracker[] {
+        return this.stateManager.getScouts();
+    }
+
+    public async requestEconomy(request: Omit<EconomyRequest, 'armyGuid'>): Promise<EconomyResponse | null> {
+        return this.stateManager.requestEconomy(request);
     }
 
     private create(common: Common, initialBuildings: TBuildingInput[] = []) {
@@ -117,6 +146,10 @@ export class Army {
         // Вражеские здания (house, barracks, tower) — в прокси-цели для юнитов
         this.enemyBuildings = initialBuildings.filter(b => b.type !== 'sporovaya_bashnya' && b.type !== 'vzryvomor');
         this.updateEnemyEntities(this.enemyBuildings);
+    }
+
+    public setEconomyBuildings(buildings: TBuildingInput[]): void {
+        this.economyBuildings = [...buildings];
     }
 
     /** Синхронизирует урон по proxy-цели с локальным списком зданий врага */
@@ -241,6 +274,29 @@ export class Army {
         
     }
 
+    /** Наносит урон вражеским юнитам, находящимся в лужах слизи (5 damage/sec) */
+    private applySlimePuddleDamage(deltaTime: number): void {
+        const SLIME_DAMAGE_PER_SECOND = 5;
+        const activePuddles = this.units
+            .filter(u => u.type === 'champigneb' && !u.isAlive && (u as unknown as Champigneb).slimePuddle.ttl > 0)
+            .map(u => (u as unknown as Champigneb).slimePuddle);
+
+        if (activePuddles.length === 0) return;
+
+        for (const enemy of this.enemyUnits) {
+            if (!enemy.isAlive) continue;
+            for (const puddle of activePuddles) {
+                const dx = enemy.x - puddle.x;
+                const dy = enemy.y - puddle.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance <= puddle.radius) {
+                    enemy.takeDamage(SLIME_DAMAGE_PER_SECOND * deltaTime);
+                    break; // Не стакаем урон от нескольких луж за один тик
+                }
+            }
+        }
+    }
+
     private update(): void {
         const deltaTime = 0.2;
         this.projectiles.length = 0;
@@ -249,13 +305,20 @@ export class Army {
 
         for (const unit of this.units) {
             if (unit.isAlive) {
-                if (unit.type === 'eblekar' || unit.type === 'pizdoglyad') {
+                if (unit.type === 'eblekar') {
                     (unit as Eblekar).update(this.enemyUnits, this.map, deltaTime, aliveAllies);
+                } else if (unit.type === 'pizdoglyad') {
+                    (unit as Pizdoglyad).update(this.enemyUnits, this.map, deltaTime, aliveAllies);
                 } else {
                     unit.update(this.enemyUnits, this.map, deltaTime);
                 }
+            } else if (unit.type === 'champigneb') {
+                (unit as unknown as Champigneb).slimePuddle.ttl -= deltaTime;
             }
         }
+
+        // Урон от луж слизи по вражеским юнитам
+        this.applySlimePuddleDamage(deltaTime);
 
         // Тикаем все здания — включая мёртвые взрывоморы, ожидающие respawn
         for (const building of this.buildings) {
@@ -271,7 +334,10 @@ export class Army {
         });
 
         this.units = this.units.filter(unit => {
-            return unit.isAlive;
+            if (unit.type === 'champigneb' && !unit.isAlive) {
+                return (unit as unknown as Champigneb).slimePuddle.ttl > 0;
+            }
+            return true;
         });
 
         this.callbacks.update(this.guid!, this.getState());
@@ -281,20 +347,30 @@ export class Army {
         return {
             map: this.map,
             units: this.units.map(u => u.getState()),
-            enemyUnits: this.enemyUnits.map(u => u.getState()),
             buildings: [
                 ...this.buildings.map(b => b.getState()),
                 ...this.enemyBuildings.map(b => ({ ...b, hp: b.hp ?? 0 })),
                 ...this.economyBuildings.map(b => ({ ...b, hp: b.hp ?? 0 })),
             ],
-            economyUnits: this.economyUnits,
+            slimePuddles: this.units
+                .filter(u => u.type === 'champigneb' && !u.isAlive)
+                .map(u => (u as unknown as Champigneb).slimePuddle),
             projectiles: this.projectiles,
-            formation: null,
+            formation: this.stateManager.getFormationState(),
         };
     }
 
     public getAliveUnits(): Unit[] {
         return this.units.filter(u => u.isAlive);
+    }
+
+    private isOutsideMap(y: number, x: number) {
+        // Проверяем границы карты
+        return y < 0 || y >= this.map.length || x < 0 || x >= (this.map[0]?.length ?? 0);
+    }
+
+    private isInsideMap(y: number, x: number){
+        return !this.isOutsideMap(y, x);
     }
 
     public spawnUnit(type: 'sporomet' | 'champigneb' | 'eblekar' | 'pizdoglyad', x: number, y: number, common: Common): { guid: string } | null {
@@ -317,24 +393,28 @@ export class Army {
         } else if (type === 'eblekar') {
             this.units.push(new Eblekar({ guid, type, x, y, speed: 1, attackRange: 1, projectiles: this.projectiles }));
         } else if (type === 'pizdoglyad') {
-            this.units.push(new Pizdoglyad({ guid, type, x, y, speed: 7, attackRange: 0 }));
+            this.units.push(new Pizdoglyad({ guid, type, x, y, speed: 7 }));
         }
-
+        
+        this.stateManager.registerUnitSpawn(type, guid);
+        
         return { guid };
     }
 
 
     public spawnBuilding(type: 'vzryvomor' | 'sporovaya_bashnya', x: number, y: number, common: Common): { guid: string } | null {
-        const rows = this.map.length;
-        const cols = this.map[0]?.length ?? 0;
-        const isValid = (y1: number, x1: number): boolean =>
-            y1 >= 0 && y1 < rows && x1 >= 0 && x1 < cols && this.map[y1][x1] === 0;
+        const footprint = this.buildingFootprint(type, x, y);
 
-        const coords: [number, number][] = type === 'sporovaya_bashnya'
-            ? [[y, x], [y + 1, x], [y, x + 1], [y + 1, x + 1]]
-            : [[y, x]];
+        const isTilePlaceable = (tx: number, ty: number): boolean => {
+            if (!this.isInsideMap(ty, tx)) return false;
+            // Только равнина (0) — не вода, не горы, не туман
+            if (this.map[ty][tx] !== 0) return false;
+            // Нельзя поверх существующих зданий (свои + враги + экономика)
+            if (this.isTileOccupiedByBuilding(tx, ty)) return false;
+            return true;
+        };
 
-        if (!coords.every(([cy, cx]) => isValid(cy, cx))) return null;
+        if (!footprint.every(([tx, ty]) => isTilePlaceable(tx, ty))) return null;
 
         const guid = common.guid();
         if (type === 'vzryvomor') {
@@ -343,5 +423,36 @@ export class Army {
             this.buildings.push(new SporovayaBashnya({ guid, x, y, projectiles: this.projectiles }));
         }
         return { guid };
+    }
+
+    /** Тайлы, занимаемые зданием с левым-верхним углом (x,y). 2×2 у споровой башни, 1×1 у остальных. */
+    private buildingFootprint(type: string, x: number, y: number, declaredSizeX?: number, declaredSizeY?: number): ReadonlyArray<readonly [number, number]> {
+        const defaultSize = type === 'sporovaya_bashnya' ? 2 : 1;
+        const sx = declaredSizeX ?? defaultSize;
+        const sy = declaredSizeY ?? defaultSize;
+        const tiles: [number, number][] = [];
+        for (let dy = 0; dy < sy; dy++) {
+            for (let dx = 0; dx < sx; dx++) {
+                tiles.push([x + dx, y + dy]);
+            }
+        }
+        return tiles;
+    }
+
+    /** Проверяет, занят ли тайл футпринтом любого существующего здания (свои/враги/экономика). */
+    private isTileOccupiedByBuilding(tx: number, ty: number): boolean {
+        const hit = (tiles: ReadonlyArray<readonly [number, number]>): boolean =>
+            tiles.some(([bx, by]) => bx === tx && by === ty);
+
+        for (const b of this.buildings) {
+            if (hit(this.buildingFootprint(b.type, b.x, b.y))) return true;
+        }
+        for (const b of this.enemyBuildings) {
+            if (hit(this.buildingFootprint(b.type, b.x, b.y, b.sizeX, b.sizeY))) return true;
+        }
+        for (const b of this.economyBuildings) {
+            if (hit(this.buildingFootprint(b.type, b.x, b.y, b.sizeX, b.sizeY))) return true;
+        }
+        return false;
     }
 }

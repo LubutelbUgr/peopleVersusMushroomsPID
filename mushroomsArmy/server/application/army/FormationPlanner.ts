@@ -17,19 +17,19 @@ export type FormationPlannerOptions = {
 
 const WALKABLE_TILES = new Set<number>([0, 2]);
 
-// Параметры решётки: SLOT_OFFSET = SLOT_STEP/2 даёт треугольную упаковку.
-const SLOT_STEP          = 2;
-const L_STEP             = 2;   // расстояние между L-кольцами
-const SLOT_OFFSET        = 1;
+// Параметры решётки — см. spec/formation.md §2.1.
+// SLOT_OFFSET = SLOT_STEP/2 даёт треугольную упаковку.
+const SLOT_STEP          = 4;
+const L_STEP             = 3;
+const SLOT_OFFSET        = 2;
 const MIN_D              = 1;
 const WALL_TRIGGER_RINGS = 5;
-// Схлопывание: кольцо сжимается только если юнитов < 60% ёмкости меньшего радиуса.
-const SHRINK_THRESHOLD   = 0.6;
-// Кулдаун между схлопываниями (тиков × 200 мс). 10 тиков = 2 сек.
-const SHRINK_COOLDOWN    = 10;
+// Шаг между лекарями вдоль плеча L: stride 2 × SLOT_STEP 4 = 8 клеток.
+// При переполнении пакуем плотнее (offset=1 → шаг 4 клетки), излишки дропаем.
+const EBLEKAR_SLOT_STRIDE = 2;
 
-// Авторитетная семантика: L-кольца вокруг угла базы,
-// 3 активные L подряд, type-rank, wave-fill.
+// Авторитетная семантика — в spec/formation.md (L-кольца вокруг угла базы,
+// 3 активные L подряд, type-rank, wave-fill).
 export class FormationPlanner {
     private readonly _center: Readonly<{ x: number; y: number }>;
     private readonly map: TMap;
@@ -39,10 +39,6 @@ export class FormationPlanner {
     private readonly mapCols: number;
 
     private lastWallRingIdx: number = 0;
-    // Текущий радиус формации (d_start). Расширяется немедленно при нехватке
-    // слотов, схлопывается постепенно с кулдауном — без рывков при потерях.
-    private currentDStart: number = MIN_D;
-    private contractionCooldown: number = 0;
     private lastBuiltSlots: Record<FormationUnitType, FormationSlotPos[]> = {
         sporomet:   [],
         eblekar:    [],
@@ -85,42 +81,47 @@ export class FormationPlanner {
         }
 
         const maxD = Math.max(this.baseWallTopY, this.baseWallLeftX);
-
-        // Ёмкость трёх активных L при данном d_start.
-        const capacityAt = (d: number): number =>
-            this.lShellCells(d).length +
-            this.lShellCells(d + L_STEP).length +
-            this.lShellCells(d + 2 * L_STEP).length;
-
-        // Расширение: немедленно, пока юниты не помещаются.
-        while (capacityAt(this.currentDStart) < total && this.currentDStart + 2 * L_STEP < maxD) {
-            this.currentDStart += L_STEP;
+        let dStart = MIN_D;
+        let innerCells = this.lShellCells(dStart);
+        let middleCells = this.lShellCells(dStart + L_STEP);
+        let outerCells = this.lShellCells(dStart + 2 * L_STEP);
+        // Формация расширяется по двум причинам:
+        // (1) общая ёмкость 3 L < total — иначе юнитам не хватит слотов;
+        // (2) inner L не вмещает всех лекарей со stride 2 — иначе либо часть лекарей
+        //     останутся без слота (одинокий медик на передовой), либо stride сожмётся
+        //     до 4 клеток (см. distributeEblekars offset=1) и они кучкуются.
+        const eblekarStrideCapacity = (cellsCount: number): number => Math.ceil(cellsCount / EBLEKAR_SLOT_STRIDE);
+        while (
+            innerCells.length + middleCells.length + outerCells.length < total
+            || eblekarStrideCapacity(innerCells.length) < remaining.eblekar
+        ) {
+            // outer L должна оставаться в карте: apex outer = max(.) - d_start - 2·L_STEP
+            // должен быть ≥ 0.
+            if (dStart + 2 * L_STEP >= maxD) break;
+            dStart += L_STEP;
+            innerCells = this.lShellCells(dStart);
+            middleCells = this.lShellCells(dStart + L_STEP);
+            outerCells = this.lShellCells(dStart + 2 * L_STEP);
         }
 
-        // Схлопывание: одно кольцо за раз с кулдауном — без тряски при потерях.
-        if (this.contractionCooldown > 0) {
-            this.contractionCooldown--;
-        } else if (this.currentDStart > MIN_D) {
-            const smallerD = Math.max(MIN_D, this.currentDStart - L_STEP);
-            if (total <= Math.floor(capacityAt(smallerD) * SHRINK_THRESHOLD)) {
-                this.currentDStart = smallerD;
-                this.contractionCooldown = SHRINK_COOLDOWN;
-            }
-        }
-
-        const dStart = this.currentDStart;
-        const innerCells = this.lShellCells(dStart);
-        const middleCells = this.lShellCells(dStart + L_STEP);
-        const outerCells = this.lShellCells(dStart + 2 * L_STEP);
+        // Лекари — на inner L (самая внутренняя, тыл формации; передние линии остаются
+        // боевым юнитам). Распределяем по обоим плечам с примерным шагом 8 клеток
+        // (stride 2 слота). При нехватке места — стираем шаг до 4 (offset=1).
+        const innerArms = this.lShellArms(dStart);
+        const eblekarCells = this.distributeEblekars(innerArms, remaining.eblekar);
+        result.eblekar.push(...eblekarCells);
+        remaining.eblekar -= eblekarCells.length;
+        const eblekarKeys = new Set(eblekarCells.map(c => `${c.x},${c.y}`));
+        const innerCellsForOthers = innerCells.filter(c => !eblekarKeys.has(`${c.x},${c.y}`));
 
         type LSpec = {
             cells: FormationSlotPos[];
             priority: ReadonlyArray<FormationUnitType>;
         };
         const Ls: LSpec[] = [
-            { cells: innerCells,  priority: ['eblekar', 'sporomet', 'champigneb'] },
-            { cells: middleCells, priority: ['sporomet', 'champigneb'] },
-            { cells: outerCells,  priority: ['champigneb'] },
+            { cells: innerCellsForOthers, priority: ['sporomet', 'champigneb'] },
+            { cells: middleCells,         priority: ['sporomet', 'champigneb'] },
+            { cells: outerCells,          priority: ['champigneb', 'sporomet'] },
         ];
         if (fillOrder === 'outer-first') Ls.reverse();
 
@@ -162,9 +163,8 @@ export class FormationPlanner {
 
     // -- private helpers --
 
-    // Wave-ordered lattice-слоты L(d): top[0], left[0], top[1], left[1]...
-    // (apex входит в top[0] если он lattice-cell). См. §2.3, §3.3.
-    private lShellCells(d: number): FormationSlotPos[] {
+    // Lattice-слоты L(d), разделённые по плечам — каждое плечо в порядке от апекса.
+    private lShellArms(d: number): { top: FormationSlotPos[]; left: FormationSlotPos[] } {
         const i = Math.floor((d - MIN_D) / L_STEP);
         const shift = (i & 1) ? SLOT_OFFSET : 0;
 
@@ -191,11 +191,48 @@ export class FormationPlanner {
             }
         }
 
+        return { top, left };
+    }
+
+    // Wave-ordered lattice-слоты L(d): top[0], left[0], top[1], left[1]...
+    // (apex входит в top[0] если он lattice-cell). См. §2.3, §3.3.
+    private lShellCells(d: number): FormationSlotPos[] {
+        const { top, left } = this.lShellArms(d);
         const result: FormationSlotPos[] = [];
         const maxLen = Math.max(top.length, left.length);
         for (let k = 0; k < maxLen; k++) {
             if (k < top.length)  result.push(top[k]);
             if (k < left.length) result.push(left[k]);
+        }
+        return result;
+    }
+
+    // Равномерно раскладываем `count` лекарей по плечам inner L:
+    // сначала «редкая» сетка (offset=0, шаг = EBLEKAR_SLOT_STRIDE × SLOT_STEP клеток),
+    // потом, если ещё остались, в пропуски (offset=1, плотнее). Чередуем top/left, чтобы
+    // не забивать одно плечо целиком до перехода на другое.
+    private distributeEblekars(
+        arms: { top: ReadonlyArray<FormationSlotPos>; left: ReadonlyArray<FormationSlotPos> },
+        count: number,
+    ): FormationSlotPos[] {
+        if (count <= 0) return [];
+        const stride = EBLEKAR_SLOT_STRIDE;
+        const pick = (arm: ReadonlyArray<FormationSlotPos>, offset: number): FormationSlotPos[] => {
+            const out: FormationSlotPos[] = [];
+            for (let i = offset; i < arm.length; i += stride) out.push(arm[i]);
+            return out;
+        };
+
+        const result: FormationSlotPos[] = [];
+        let remaining = count;
+        for (let offset = 0; offset < stride && remaining > 0; offset++) {
+            const topPicks  = pick(arms.top,  offset);
+            const leftPicks = pick(arms.left, offset);
+            const maxLen = Math.max(topPicks.length, leftPicks.length);
+            for (let k = 0; k < maxLen && remaining > 0; k++) {
+                if (k < topPicks.length  && remaining > 0) { result.push(topPicks[k]);  remaining--; }
+                if (k < leftPicks.length && remaining > 0) { result.push(leftPicks[k]); remaining--; }
+            }
         }
         return result;
     }
@@ -222,6 +259,9 @@ export class FormationPlanner {
     }
 
     // Сплошная L (каждая клетка, не lattice-слоты) — vzryvomor стена.
+    // На клетках воды (tile=1) стена не ставится, а отгибается наружу
+    // (вверх для top, влево для left), огибая водоём по внешнему контуру.
+    // Горы/туман (tile=2/null) сами блокируют проход — стена просто пропускает столбец.
     private generateWallL(shellDist: number): FormationSlotPos[] {
         const topY  = this.baseWallTopY  - shellDist;
         const leftX = this.baseWallLeftX - shellDist;
@@ -229,64 +269,44 @@ export class FormationPlanner {
 
         if (topY >= 0 && topY < this.mapRows) {
             const xStart = Math.max(0, leftX);
-            for (let x = xStart; x < this.mapCols; x++) positions.push({ x, y: topY });
+            for (let x = xStart; x < this.mapCols; x++) {
+                const wallY = this.findWallTopY(x, topY);
+                if (wallY !== null) positions.push({ x, y: wallY });
+            }
         }
         if (leftX >= 0 && leftX < this.mapCols) {
             const yStart = Math.max(0, topY + 1);
-            for (let y = yStart; y < this.mapRows; y++) positions.push({ x: leftX, y });
+            for (let y = yStart; y < this.mapRows; y++) {
+                const wallX = this.findWallLeftX(y, leftX);
+                if (wallX !== null) positions.push({ x: wallX, y });
+            }
         }
         return positions;
     }
 
-    public buildAttackSemicircle(
-        counts: FormationUnitCounts,
-        centerX: number,
-        centerY: number,
-    ): Record<FormationUnitType, FormationSlotPos[]> {
-        const result: Record<FormationUnitType, FormationSlotPos[]> = {
-            champigneb: [], sporomet: [], eblekar: [],
-        };
+    // Для столбца x: первая клетка-равнина от baseY вверх. Вода (1) пропускается,
+    // на горе/тумане столбец считается заблокированным (стена не нужна).
+    private findWallTopY(x: number, baseY: number): number | null {
+        for (let y = baseY; y >= 0; y--) {
+            const tile = this.map[y]?.[x];
+            if (tile === 0) return y;
+            if (tile !== 1) return null;
+        }
+        return null;
+    }
 
-        // Направление к врагу от центра полукруга
-        const dx = centerX - this._center.x;
-        const dy = centerY - this._center.y;
-        const norm = Math.sqrt(dx * dx + dy * dy) || 1;
-        // Базовый угол — в сторону врага
-        const ATTACK_ANGLE = Math.atan2(dy / norm, dx / norm);
+    // Для строки y: первая клетка-равнина от baseX влево.
+    private findWallLeftX(y: number, baseX: number): number | null {
+        const row = this.map[y];
+        if (row == null) return null;
+        for (let x = baseX; x >= 0; x--) {
+            const tile = row[x];
+            if (tile === 0) return x;
+            if (tile !== 1) return null;
+        }
+        return null;
+    }
 
-        // Шампиньебы — передняя дуга
-        const R_FRONT = 18;
-        // Спорометы — средняя дуга
-        const R_MID = 10;
-        // Еблекари
-        const R_BACK = 5;
-
-        const arcSlots = (
-            r: number,
-            n: number,
-            spreadRad: number,
-            offsetAngle = 0,
-        ): FormationSlotPos[] => {
-            if (n === 0) return [];
-            const slots: FormationSlotPos[] = [];
-            for (let i = 0; i < n; i++) {
-                const t = n > 1 ? (i / (n - 1) - 0.5) * spreadRad : 0;
-                const angle = ATTACK_ANGLE + offsetAngle + t;
-                const x = Math.round(this._center.x + r * Math.cos(angle));
-                const y = Math.round(this._center.y + r * Math.sin(angle));
-                if (x >= 0 && y >= 0 && x < this.mapCols && y < this.mapRows) {
-                    if (this.isWalkable(x, y)) slots.push({ x, y });
-                }
-            }
-            return slots;
-    };
-
-    result.champigneb = arcSlots(R_FRONT, counts.champigneb ?? 0, Math.PI * 0.9);
-    result.sporomet   = arcSlots(R_MID,   counts.sporomet   ?? 0, Math.PI * 0.7);
-    result.eblekar    = arcSlots(R_BACK,  counts.eblekar    ?? 0, Math.PI * 0.25, Math.PI);
-
-    return result;
-}
     private isWalkable(x: number, y: number): boolean {
         const tile = this.map[y]?.[x];
         return tile != null && WALKABLE_TILES.has(tile);

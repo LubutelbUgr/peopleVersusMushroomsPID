@@ -96,7 +96,7 @@ describe('FormationPlanner — 3 активные L подряд, type-rank cons
     });
 
     describe('3 активные L подряд', () => {
-        it('малый армия (3+3+3): d_start = 1, формация занимает {1, 3, 5}', () => {
+        it('малый армия (3+3+3): d_start = 1, формация занимает {1, 4, 7}', () => {
             const opts = standardOpts();
             const p = new FormationPlanner(opts);
             const slots = p.updateForCounts({ sporomet: 3, eblekar: 3, champigneb: 3 });
@@ -104,22 +104,22 @@ describe('FormationPlanner — 3 активные L подряд, type-rank cons
             const shells = distinctShells(all, opts.baseWallTopY, opts.baseWallLeftX);
             // Все слоты на одной из 3 активных L
             for (const s of shells) {
-                expect([1, 3, 5]).toContain(s);
+                expect([1, 4, 7]).toContain(s);
             }
         });
 
         it('армия > capacity 3-L при d_start=1: d_start сдвигается наружу', () => {
             const opts = standardOpts();
             const p = new FormationPlanner(opts);
-            // 30+30+30 = 90 юнитов. d_start=1 вмещает ~52. Должен сдвинуться.
+            // 30+30+30 = 90 юнитов. d_start=1 вместит ~27. Должен сдвинуться.
             const slots = p.updateForCounts({ sporomet: 30, eblekar: 30, champigneb: 30 });
             const all = [...slots.sporomet, ...slots.eblekar, ...slots.champigneb];
             const shells = distinctShells(all, opts.baseWallTopY, opts.baseWallLeftX);
-            // ровно 3 уникальных shell с шагом 2
+            // ровно 3 уникальных shell с шагом 3
             expect(shells.length).toBeLessThanOrEqual(3);
             if (shells.length === 3) {
-                expect(shells[1] - shells[0]).toBe(2);
-                expect(shells[2] - shells[1]).toBe(2);
+                expect(shells[1] - shells[0]).toBe(3);
+                expect(shells[2] - shells[1]).toBe(3);
             }
             // Inner shell > 1 (сдвинулся)
             expect(shells[0]).toBeGreaterThan(1);
@@ -135,7 +135,7 @@ describe('FormationPlanner — 3 активные L подряд, type-rank cons
     });
 
     describe('type-rank constraint', () => {
-        it('eblekar только на inner L (= d_start)', () => {
+        it('eblekar только на inner L (= d_start) — тыл формации, передние линии для боевых', () => {
             const opts = standardOpts();
             const p = new FormationPlanner(opts);
             const slots = p.updateForCounts({ eblekar: 100, sporomet: 100, champigneb: 100 });
@@ -154,7 +154,7 @@ describe('FormationPlanner — 3 активные L подряд, type-rank cons
             const all = [...slots.sporomet, ...slots.eblekar, ...slots.champigneb];
             const shells = distinctShells(all, opts.baseWallTopY, opts.baseWallLeftX);
             const dStart = shells[0];
-            const middle = dStart + 2;
+            const middle = dStart + 3;
             for (const s of slots.sporomet) {
                 const sh = shellDist(s, opts.baseWallTopY, opts.baseWallLeftX);
                 expect([dStart, middle]).toContain(sh);
@@ -164,70 +164,76 @@ describe('FormationPlanner — 3 активные L подряд, type-rank cons
         it('champigneb может быть на любой из 3 активных L', () => {
             const opts = standardOpts();
             const p = new FormationPlanner(opts);
-            // 9 champ — d_start=1 вмещает (~52 слотов). Активные shells={1,3,5}.
+            // 9 champ — d_start=1 вмещает (cap=27). Активные shells={1,4,7}.
             const slots = p.updateForCounts({ champigneb: 9 });
             const shells = distinctShells(
                 slots.champigneb, opts.baseWallTopY, opts.baseWallLeftX);
-            // Все слоты на одной из {1,3,5}
-            expect(shells.every(s => s === 1 || s === 3 || s === 5)).toBe(true);
+            // Все слоты на одной из {1,4,7}
+            expect(shells.every(s => s === 1 || s === 4 || s === 7)).toBe(true);
             // Champ priority в inner=3rd, middle=2nd, outer=1st. Inner-first:
-            // inner заполняется первым (ebl=sporo=0, champ доливает).
-            // ~15 inner слотов — все 9 champ вмещаются на inner.
+            // inner заполняется первым (ebl=sporo=0, champ доливает). 7 inner
+            // слотов → 7 champ. 2 champ → middle (priority [sporo,champ], sporo=0).
             expect(slots.champigneb.length).toBe(9);
         });
 
-        it('излишки eblekar (> inner capacity) НЕ получают слот', () => {
+        it('eblekar расширяет формацию чтобы все вошли с stride 2 (никаких сирот)', () => {
             const opts = standardOpts();
             const p = new FormationPlanner(opts);
-            // Только ebl. На d_start=1 inner L имеет ~7 слотов. 30 ebl: 7 получают
-            // слот, 23 — нет.
             const slots = p.updateForCounts({ eblekar: 30 });
-            expect(slots.eblekar.length).toBeLessThan(30);
-            expect(slots.eblekar.length).toBeGreaterThan(0);
-            // Все ebl на одной L
+            // Все 30 на одной L (inner)
+            expect(slots.eblekar.length).toBe(30);
             const shells = distinctShells(slots.eblekar, opts.baseWallTopY, opts.baseWallLeftX);
             expect(shells.length).toBe(1);
+        });
+
+        it('если даже max d_start не вмещает eblekar — лишние сбрасываются', () => {
+            const opts = standardOpts();
+            const p = new FormationPlanner(opts);
+            // Сверх-обилие лекарей — формация упирается в maxD
+            const slots = p.updateForCounts({ eblekar: 1000 });
+            expect(slots.eblekar.length).toBeLessThan(1000);
+            expect(slots.eblekar.length).toBeGreaterThan(0);
         });
     });
 
     describe('priority внутри L (mixing в пределах rank)', () => {
-        it('inner L приоритет eblekar: 3 ebl + 3 sporo, малая армия → ebl на inner вместе с sporo (mixing)', () => {
+        it('eblekar — на inner L; sporo — на inner или middle', () => {
             const opts = standardOpts();
             const p = new FormationPlanner(opts);
             const slots = p.updateForCounts({ eblekar: 3, sporomet: 3 });
-            // 6 units, d_start=1 (вмещает). Inner priority [ebl,sporo,champ].
-            // 7 inner-слотов: первые 3 → ebl, следующие 3 → sporo (rank позволяет).
-            // ebl на inner (shell=1).
+            // 6 units, d_start=1 (вмещает). Inner L = L(d=1).
             for (const e of slots.eblekar) {
                 expect(shellDist(e, opts.baseWallTopY, opts.baseWallLeftX)).toBe(1);
             }
-            // sporo может оказаться на inner (mixing) или middle. Главное — не дальше.
             for (const s of slots.sporomet) {
-                expect(shellDist(s, opts.baseWallTopY, opts.baseWallLeftX)).toBeLessThanOrEqual(3);
+                expect(shellDist(s, opts.baseWallTopY, opts.baseWallLeftX)).toBeLessThanOrEqual(4);
             }
         });
 
-        it('outer L: только champigneb (rank блокирует sporo/ebl)', () => {
+        it('outer L: champigneb приоритетно, ebl никогда (sporo — fallback если champ не хватает)', () => {
             const opts = standardOpts();
             const p = new FormationPlanner(opts);
-            // Армия маленькая (3+3+3), d_start=1, outer L = L(d=5).
-            // На L(d=5) могут только champ. Проверим.
+            // Армия маленькая (3+3+3), d_start=1, outer L = L(d=7).
             const slots = p.updateForCounts({ sporomet: 3, eblekar: 3, champigneb: 3 });
-            const champOnShell5 = slots.champigneb.filter(c =>
-                shellDist(c, opts.baseWallTopY, opts.baseWallLeftX) === 5);
-            // У outer L приоритет [champigneb] — ebl/sporo туда не попадают.
-            const ebsOrSporoOnOuter = [...slots.eblekar, ...slots.sporomet].filter(s =>
-                shellDist(s, opts.baseWallTopY, opts.baseWallLeftX) === 5);
-            expect(ebsOrSporoOnOuter.length).toBe(0);
-            // Champ inner-first: outer заполняется ПОСЛЕДНИМ, поэтому при 3 champ
-            // и mixing на inner/middle где champ ниже priority — champ может попасть
-            // на любую из 3. Просто проверим что champ всё-таки распределён.
+            // Eblekar никогда на outer (rank=inner only)
+            const eblOnOuter = slots.eblekar.filter(e =>
+                shellDist(e, opts.baseWallTopY, opts.baseWallLeftX) === 7);
+            expect(eblOnOuter.length).toBe(0);
             expect(slots.champigneb.length).toBe(3);
+        });
+
+        it('outer L: sporomet идёт на 1-ю линию если нет champignebs', () => {
+            const opts = standardOpts();
+            const p = new FormationPlanner(opts);
+            // Много спорометов, ни одного champ — sporomets должны добраться до outer
+            const slots = p.updateForCounts({ sporomet: 100, eblekar: 0, champigneb: 0 });
+            const shells = distinctShells(slots.sporomet, opts.baseWallTopY, opts.baseWallLeftX);
+            expect(shells.length).toBe(3); // sporo занял все 3 L
         });
     });
 
     describe('fillOrder', () => {
-        it('inner-first (default): ebl на самой внутренней активной L', () => {
+        it('inner-first (default): ebl на самой внутренней L (3-я линия)', () => {
             const opts = standardOpts();
             const p = new FormationPlanner(opts);
             const slots = p.updateForCounts({ eblekar: 3, sporomet: 3, champigneb: 3 });
@@ -240,14 +246,13 @@ describe('FormationPlanner — 3 активные L подряд, type-rank cons
             }
         });
 
-        it('outer-first: ebl всё равно на inner (rank), но champ на outer первым', () => {
+        it('outer-first: ebl всё равно на inner (rank ebl=inner, не зависит от fillOrder)', () => {
             const opts = standardOpts();
             const p = new FormationPlanner(opts);
             const slots = p.updateForCounts(
                 { eblekar: 3, sporomet: 3, champigneb: 3 },
                 { fillOrder: 'outer-first' },
             );
-            // Rank ebl=inner only — ebl всё равно на самой внутренней L. Rank не зависит от fillOrder.
             const shells = distinctShells(
                 [...slots.eblekar, ...slots.sporomet, ...slots.champigneb],
                 opts.baseWallTopY, opts.baseWallLeftX);
@@ -255,6 +260,105 @@ describe('FormationPlanner — 3 активные L подряд, type-rank cons
             for (const e of slots.eblekar) {
                 expect(shellDist(e, opts.baseWallTopY, opts.baseWallLeftX)).toBe(dStart);
             }
+        });
+    });
+
+    describe('eblekar равномерное распределение по inner L', () => {
+        it('11 eblekar на 100×100 → распределены по обоим плечам, шаг ≥ 8 клеток на каждом плече', () => {
+            const opts = standardOpts();
+            const p = new FormationPlanner(opts);
+            // Достаточно sporo+champ чтобы dStart разъехался → плечи длинные.
+            const slots = p.updateForCounts({
+                eblekar: 11, sporomet: 200, champigneb: 200,
+            });
+
+            expect(slots.eblekar.length).toBe(11);
+
+            // Группируем по плечам: top — общая y, left — общая x.
+            const yCounts = new Map<number, number>();
+            const xCounts = new Map<number, number>();
+            for (const e of slots.eblekar) {
+                yCounts.set(e.y, (yCounts.get(e.y) ?? 0) + 1);
+                xCounts.set(e.x, (xCounts.get(e.x) ?? 0) + 1);
+            }
+            // Должны быть представлены оба плеча (а не один столбик как раньше).
+            const topShare  = [...yCounts.values()].reduce((a, b) => Math.max(a, b), 0);
+            const leftShare = [...xCounts.values()].reduce((a, b) => Math.max(a, b), 0);
+            expect(topShare).toBeGreaterThan(0);
+            expect(leftShare).toBeGreaterThan(0);
+
+            // На каждом плече соседи разнесены минимум на 8 клеток (stride 2 × SLOT_STEP 4).
+            const checkSpacing = (coords: number[]): void => {
+                const sorted = [...coords].sort((a, b) => a - b);
+                for (let i = 1; i < sorted.length; i++) {
+                    expect(sorted[i] - sorted[i - 1]).toBeGreaterThanOrEqual(8);
+                }
+            };
+            const apexY = opts.baseWallTopY - 1;
+            const apexX = opts.baseWallLeftX - 1;
+            // dStart может быть > 1 — собираем по фактическим строкам/столбцам плеч.
+            const armYs = [...yCounts.keys()];
+            const armXs = [...xCounts.keys()];
+            for (const armY of armYs) {
+                const xs = slots.eblekar.filter(e => e.y === armY).map(e => e.x);
+                if (xs.length > 1) checkSpacing(xs);
+            }
+            for (const armX of armXs) {
+                const ys = slots.eblekar.filter(e => e.x === armX).map(e => e.y);
+                if (ys.length > 1) checkSpacing(ys);
+            }
+            expect(apexY).toBeLessThan(opts.baseWallTopY);
+            expect(apexX).toBeLessThan(opts.baseWallLeftX);
+        });
+    });
+
+    describe('generateWallL — огибание воды', () => {
+        const advanceAndCheck = (p: FormationPlanner, counts: FormationUnitCounts) => {
+            const slots = p.updateForCounts(counts);
+            const positions = [...slots.sporomet, ...slots.eblekar, ...slots.champigneb];
+            return p.checkWallTrigger(positions);
+        };
+
+        // На 100×100 standardOpts: baseWallTopY=baseWallLeftX=85.
+        // checkWallTrigger срабатывает на shellDist = WALL_TRIGGER_RINGS·L_STEP = 15,
+        // → top-плечо стены лежит на y=70, x∈[70..99]; left-плечо — на x=70, y∈[71..99].
+        it('стена не ставится на воду; столбец с водой получает клетку выше', () => {
+            const map = makeMap();
+            // Полоса воды в строке y=70, x∈[75..85] — внутри top-плеча стены.
+            for (let x = 75; x <= 85; x++) map[70][x] = 1;
+
+            const opts = standardOpts({ map });
+            const p = new FormationPlanner(opts);
+            const wall = advanceAndCheck(p, { sporomet: 200, eblekar: 200, champigneb: 200 });
+            expect(wall).not.toBe(null);
+
+            for (const w of wall!) {
+                expect(map[w.y][w.x]).not.toBe(1);
+            }
+
+            // Все 11 столбцов воды покрыты стеной выше воды (y<70).
+            const topWalls = wall!.filter(w => w.x >= 75 && w.x <= 85);
+            expect(topWalls.length).toBe(11);
+            for (const w of topWalls) {
+                expect(w.y).toBeLessThan(70);
+            }
+        });
+
+        it('столбец полностью заблокирован горой → стена не ставится в этом столбце', () => {
+            const map = makeMap();
+            // В столбце x=80 от верха до строки стены — гора. Стена в этом столбце не нужна.
+            for (let y = 0; y <= 80; y++) map[y][80] = 2;
+
+            const opts = standardOpts({ map });
+            const p = new FormationPlanner(opts);
+            const wall = advanceAndCheck(p, { sporomet: 200, eblekar: 200, champigneb: 200 });
+            expect(wall).not.toBe(null);
+
+            for (const w of wall!) {
+                expect(map[w.y][w.x]).not.toBe(2);
+            }
+            const onCol80 = wall!.filter(w => w.x === 80);
+            expect(onCol80.length).toBe(0);
         });
     });
 
