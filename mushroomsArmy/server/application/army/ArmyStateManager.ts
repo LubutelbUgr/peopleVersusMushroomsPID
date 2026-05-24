@@ -181,9 +181,6 @@ export class ArmyStateManager {
 
             // Синхронизируем скорость сразу 
             this.syncGroupSpeed(allCombat);
-            for (const u of allCombat) {
-                u.leashRadius = Infinity;
-            }
 
             const avgX = allCombat.reduce((s, u) => s + u.x, 0) / allCombat.length;
             const avgY = allCombat.reduce((s, u) => s + u.y, 0) / allCombat.length;
@@ -195,6 +192,9 @@ export class ArmyStateManager {
             const marchDirX = nearestEnemy ? nearestEnemy.x - avgX : 0 - avgX;
             const marchDirY = nearestEnemy ? nearestEnemy.y - avgY : 0 - avgY;
             const marchNorm = Math.sqrt(marchDirX * marchDirX + marchDirY * marchDirY) || 1;
+            const enemyNear = nearestEnemy
+                ? Math.sqrt((nearestEnemy.x - avgX) ** 2 + (nearestEnemy.y - avgY) ** 2) <= 25
+                : false;
 
             // Строим полукруг вокруг центра масс группы лицом в сторону марша
             const slots = this.buildMarchSemicircle(
@@ -205,6 +205,25 @@ export class ArmyStateManager {
             );
             
             this.assignFormationTargets(slots);
+
+            const formationReady = allCombat.every(u => {
+                if (!u.formationTarget) return false;
+                const dx = u.x - u.formationTarget.x;
+                const dy = u.y - u.formationTarget.y;
+                return Math.sqrt(dx * dx + dy * dy) <= 1.5;
+            });
+
+            for (const u of aliveUnits) {
+                if (u.type === 'pizdoglyad') {
+                    u.formationHold = false;
+                    continue;
+                }
+
+                u.formationHold = !formationReady && !enemyNear;
+            }
+            for (const u of allCombat) {
+                u.leashRadius = enemyNear ? 18 : formationReady ? 12 : Infinity;
+            }
 
             if (!nearestEnemy) {
                 for (const u of allCombat) {
@@ -224,27 +243,14 @@ export class ArmyStateManager {
                 }
                 return;
             }
-
-            for (const u of allCombat) {
-                if (u.type === 'eblekar') {
-                    continue;
-                }
-
-                const enemyInRange = this.army.enemyUnits.some(e => {
-                    if (!e.isAlive) return false;
-                    const dx = e.x - u.x, dy = e.y - u.y;
-                    return Math.sqrt(dx * dx + dy * dy) <= u.attackRange;
-                });
-                if (enemyInRange) {
-                    u.formationTarget = null; 
-                }
-            }
             return;
         }
 
         // Обычный режим
         for (const u of aliveUnits) {
             u.currentSpeed = u.speed;
+            u.formationHold = false;
+            u.leashRadius = Infinity;
         }
 
         const slots = planner.updateForCounts(counts);

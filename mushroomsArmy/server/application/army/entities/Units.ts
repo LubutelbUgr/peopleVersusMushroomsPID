@@ -69,6 +69,9 @@ class Unit {
     // Cлот формации, назначаемый ArmyStateManager. Используется как fallback-цель,
     // когда у юнита нет более приоритетного таргета (боевой / хил-ally).
     public formationTarget: { x: number; y: number } | null = null;
+    // Когда true, юнит игнорирует врагов и идёт только к formationTarget, пока не
+    // соберётся весь отряд.
+    public formationHold: boolean = false;
     // Поводок: дальше этого расстояния от formationTarget враг игнорируется в
     // makeDecision. Infinity = без ограничения (sporomet/eblekar). Champigneb
     // переопределяет на конечное значение, чтобы держать "пояс мин" вдоль слота.
@@ -125,6 +128,12 @@ class Unit {
     }
     
     private makeDecision(enemies: Unit[], map: TMap): void {
+        if (this.formationHold && this.formationTarget) {
+            this.targetX = this.formationTarget.x;
+            this.targetY = this.formationTarget.y;
+            return;
+        }
+
         // Leash-фильтр: не даёт champigneb рассыпаться по карте вдали от слота.
         const leashOk = (enemy: Unit): boolean => {
             if (!this.formationTarget || this.leashRadius === Infinity) return true;
