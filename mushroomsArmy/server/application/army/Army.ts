@@ -74,6 +74,15 @@ export type TArmyState = {
     formation: TFormationState | null;
 }
 
+export type TMapBuildingEntity = {
+    guid: string;
+    x: number;
+    y: number;
+    type: string;
+    visibility: number;
+    size: number;
+};
+
 export class Army {
     public mapGuid: string;
     public guid: string;
@@ -84,10 +93,11 @@ export class Army {
     public enemyBuildings: TBuildingInput[] = [];
     public economyBuildings: TBuildingInput[] = [];
     public economyUnits: TBuildingInput[] = [];
-    public sentBuildingGuids: Set<string> = new Set();
+    // public sentBuildingGuids: Set<string> = new Set();
     /** Последнее состояние юнитов, отданное карте (протокол UPDATE_UNITS). */
     public projectiles: TProjectile[] = [];
-    private mapSyncedUnits: Map<string, { x: number; y: number; type: string; visibility: number }> = new Map();
+    private mapSyncedUnits = new Map<string, { x: number; y: number; type: string; visibility: number }>();
+    public mapSyncedBuildings = new Map<string, { guid: string; x: number; y: number; type: string; visibility: number; size: number }>();
     public callbacks: {
         update: (guid: string, data: TArmyState) => void;
         takeDamage?: (target: TDamageTarget) => unknown;
@@ -152,6 +162,57 @@ export class Army {
                 });
             } else {
                 this.mapSyncedUnits.delete(entity.guid);
+            }
+        }
+
+        return entities;
+    }
+
+    /**
+     * Преобразует внутренний стейт здания в сущность для синхронизации с картой.
+     */
+    private buildingStateToMapEntity(state: TBuildingState): TMapBuildingEntity {
+        const sizeX = state.sizeX ?? 1;
+        const sizeY = state.sizeY ?? 1;
+        
+        return {
+            guid: state.guid,
+            x: state.x,
+            y: state.y,
+            type: state.type,
+            visibility: state.visibility ?? 1,
+            size: Math.max(sizeX, sizeY, 1),
+        };
+    }
+
+    /**
+     * Дельта для map UPDATE_BUILDINGS (см. map/API.md §4.2.5):
+     * — Новое здание или изменившееся старое → отправляем snapshot
+     * — Здание уничтожено (было в кэше, но пропало из армии) → отправляем старый snapshot (tombstone)
+     */
+    public buildMapBuildingUpdateEntities(): TMapBuildingEntity[] {
+        const entities: TMapBuildingEntity[] = [];
+        const aliveGuids = new Set<string>();
+
+        // 1. Проверяем текущие живые здания армии
+        for (const building of this.buildings) {
+            const snapshot = this.buildingStateToMapEntity(building.getState());
+            aliveGuids.add(snapshot.guid);
+
+            const prev = this.mapSyncedBuildings.get(snapshot.guid);
+            
+            // Отправляем, если здания вообще не было на карте, ИЛИ если у него изменились важные данные
+            if (!prev || prev.x !== snapshot.x || prev.y !== snapshot.y || prev.visibility !== snapshot.visibility) {
+                entities.push(snapshot);
+                this.mapSyncedBuildings.set(snapshot.guid, snapshot); // Сразу пишем в кэш
+            }
+        }
+
+        // 2. Ищем здания, которые были снесены (были на карте, но их больше нет в стейте)
+        for (const [guid, prevSnapshot] of this.mapSyncedBuildings) {
+            if (!aliveGuids.has(guid)) {
+                entities.push(prevSnapshot);          // Отправляем tombstone (повтор координат удаляет объект)
+                this.mapSyncedBuildings.delete(guid); // Сразу чистим кэш
             }
         }
 
@@ -358,6 +419,32 @@ export class Army {
         
     }
 
+    /**
+     * Вычисляет общую видимость для всей армии.
+     * Враг считается видимым, если его видит хотя бы один юнит армии (с учётом LoS).
+     */
+    private calculateSharedVisibility(): Unit[] {
+        const visibleEnemyGuids = new Set<string>();
+        const aliveUnits = this.units.filter(u => u.isAlive);
+
+        for (const unit of aliveUnits) {
+            for (const enemy of this.enemyUnits) {
+                if (!enemy.isAlive) continue;
+                if (visibleEnemyGuids.has(enemy.guid)) continue;
+
+                const dx = enemy.x - unit.x;
+                const dy = enemy.y - unit.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist <= unit.visibility && unit.hasLineOfSight(unit.x, unit.y, enemy.x, enemy.y, this.map)) {
+                    visibleEnemyGuids.add(enemy.guid);
+                }
+            }
+        }
+
+        return this.enemyUnits.filter(enemy => visibleEnemyGuids.has(enemy.guid));
+    }
+
     private update(): void {
         const deltaTime = 0.2;
         this.projectiles.length = 0;
@@ -367,16 +454,16 @@ export class Army {
         for (const unit of this.units) {
             if (unit.isAlive) {
                 if (unit.type === 'eblekar' || unit.type === 'pizdoglyad') {
-                    (unit as Eblekar).update(this.enemyUnits, this.map, deltaTime, aliveAllies);
+                    (unit as Eblekar).update(this.calculateSharedVisibility(), this.map, deltaTime, aliveAllies);
                 } else {
-                    unit.update(this.enemyUnits, this.map, deltaTime);
+                    unit.update(this.calculateSharedVisibility(), this.map, deltaTime);
                 }
             }
         }
 
         // Тикаем все здания — включая мёртвые взрывоморы, ожидающие respawn
         for (const building of this.buildings) {
-            building.update(this.enemyUnits, this.map, deltaTime);
+            building.update(this.calculateSharedVisibility(), this.map, deltaTime);
         }
 
         // Удаляем только те здания, что мертвы И не ждут respawn

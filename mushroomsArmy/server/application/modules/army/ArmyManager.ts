@@ -1,6 +1,6 @@
 import BaseManager, { TManagerOptions } from '../BaseManager';
 import CONFIG from '../../../config';
-import { Army, TDamageTarget, TMap, TArmyState, TBuildingInput } from '../../army/Army';
+import { Army, TMap, TArmyState, TBuildingInput } from '../../army/Army';
 import { ArmyStateManager, ArmyMode, EconomyRequest, EconomyResponse } from '../../army/ArmyStateManager';
 import { Socket } from 'socket.io';
 
@@ -8,14 +8,7 @@ const GLOBAL_CONFIG = require('../../../../../global/globalConfig');
 
 const { GAME_STATE, LOBBY_START, GAME_STARTED } = CONFIG.SOCKET;
 
-type TStartGame = {
-    guid: string;
-    map?: TMap;
-    buildings: TBuildingInput[];
-    mapGuid: string;
-    peopleArmyGuid?: string | null;
-    peopleEconomyGuid?: string | null;
-};
+type TStartGame = { guid: string; map?: TMap; buildings: TBuildingInput[]; mapGuid: string; peopleArmyGuid?: string | null; mushroomsEconomyGuid?: string | null };
 type TTakeDamage = { armyGuid: string; unitGuid: string; amount: number };
 type TMoveUnit = { armyGuid: string; unitGuid: string; x: number; y: number };
 type TGetArmy = string;
@@ -29,10 +22,6 @@ type TVisibleEntity = {
     x: number;
     y: number;
     hp: number;
-    role?: string | null;
-    size?: number;
-    sizeX?: number;
-    sizeY?: number;
 };
 
 type TVisibilityResponse = {
@@ -50,18 +39,6 @@ const PEOPLE_ARMY_DEFAULT_HP: Record<string, number> = {
     sniper: 18,
     partizan: 72,
 };
-const PEOPLE_ECONOMY_BUILDING_TYPES = new Set([
-    'pipe',
-    'oil_barrel',
-    'iron_barrel',
-    'barracks',
-    'small_reactor',
-    'large_reactor',
-    'driller',
-    'mine',
-    'small_generator',
-]);
-const PEOPLE_ECONOMY_UNIT_TYPES = new Set(['worker', 'humanWorker']);
 
 function normalizeMapUnitHp(unit: TVisibleEntity): TVisibleEntity {
     const parsed = Number(unit.hp);
@@ -74,7 +51,8 @@ function normalizeMapUnitHp(unit: TVisibleEntity): TVisibleEntity {
 class ArmyManager extends BaseManager {
     private army: { [guid: string]: Army };
     private armyStateManagers: { [guid: string]: ArmyStateManager };
-    private armyGuids: Record<string, { peopleArmyGuid: string | null; peopleEconomyGuid: string | null }>;
+    private armyGuids: Record<string, { peopleArmyGuid: string | null; mushroomsEconomyGuid: string | null }>;
+    private economyRequestIntervals: Record<string, NodeJS.Timeout> = {};
 
     constructor(options: TManagerOptions) {
         super(options);
@@ -231,7 +209,7 @@ class ArmyManager extends BaseManager {
         const army = this.army[guid];
         if (!army) return;
 
-        const ownBuildings = army.buildings.map(building => building.getState());
+        // const ownBuildings = army.buildings.map(building => building.getState());
 
         const unitEntities = army.buildMapUnitUpdateEntities();
         if (unitEntities.length > 0) {
@@ -241,14 +219,22 @@ class ArmyManager extends BaseManager {
             );
         }
 
-        // Здания отправляем только новые (map использует toggle: повторная отправка удаляет с карты)
-        const newBuildings = ownBuildings.filter(b => !army.sentBuildingGuids.has(b.guid));
-        if (newBuildings.length > 0) {
-            await this.send<{ mapGuid: string; userGuid: string; entities: TArmyState['buildings'] }>(
+        // // Здания отправляем только новые (map использует toggle: повторная отправка удаляет с карты)
+        // /const newBuildings = ownBuildings.filter(b => !army.sentBuildingGuids.has(b.guid));
+        // if (newBuildings.length > 0) {
+        //     await this.send<{ mapGuid: string; userGuid: string; entities: TArmyState['buildings'] }>(
+        //         `${GLOBAL_CONFIG.MAP.URL}${GLOBAL_CONFIG.URLS.UPDATE_BUILDINGS}`,
+        //         { mapGuid: army.mapGuid, userGuid: army.guid, entities: newBuildings }
+        //     );
+        //     newBuildings.forEach(b => army.sentBuildingGuids.add(b.guid));
+        // }
+
+        const buildingEntities = army.buildMapBuildingUpdateEntities();
+        if (buildingEntities.length > 0) {
+            await this.send<{ mapGuid: string; userGuid: string; entities: typeof buildingEntities }>(
                 `${GLOBAL_CONFIG.MAP.URL}${GLOBAL_CONFIG.URLS.UPDATE_BUILDINGS}`,
-                { mapGuid: army.mapGuid, userGuid: army.guid, entities: newBuildings }
+                { mapGuid: army.mapGuid, userGuid: army.guid, entities: buildingEntities }
             );
-            newBuildings.forEach(b => army.sentBuildingGuids.add(b.guid));
         }
 
         // Получаем видимых врагов
@@ -267,24 +253,17 @@ class ArmyManager extends BaseManager {
         army.economyBuildings = visibleEnemyBuildings.filter(b => ALLIED_ECONOMY_BUILDING_TYPES.has(b.type));
         army.economyUnits     = visibleEnemyUnits.filter(u => ALLIED_ECONOMY_UNIT_TYPES.has(u.type));
 
-        const visibleEnemyUnitTargets = visibleEnemyUnits
-            .filter(e => !ALLIED_ECONOMY_UNIT_TYPES.has(e.type))
-            .map(entity => ({ ...entity, targetKind: 'unit' as const }));
-        const visibleEnemyBuildingTargets = visibleEnemyBuildings
-            .filter(e => !ALLIED_ECONOMY_BUILDING_TYPES.has(e.type))
-            .map(entity => ({ ...entity, targetKind: 'building' as const }));
+        const visibleEnemies: TVisibleEntity[] = [
+            ...visibleEnemyUnits.filter(e => !ALLIED_ECONOMY_UNIT_TYPES.has(e.type)),
+            ...visibleEnemyBuildings.filter(e => !ALLIED_ECONOMY_BUILDING_TYPES.has(e.type)),
+        ];
 
-        const enemyEntities: TBuildingInput[] = [...visibleEnemyUnitTargets, ...visibleEnemyBuildingTargets].map(entity => ({
+        const enemyEntities: TBuildingInput[] = visibleEnemies.map(entity => ({
             guid: entity.guid,
             type: entity.type,
             x: entity.x,
             y: entity.y,
             hp: entity.hp,
-            role: entity.role,
-            targetKind: entity.targetKind,
-            size: entity.size,
-            sizeX: entity.sizeX,
-            sizeY: entity.sizeY,
         }));
         army.updateEnemyEntities(enemyEntities);
 
@@ -316,34 +295,12 @@ class ArmyManager extends BaseManager {
         }));
     }
 
-    private shouldRouteToPeopleEconomy(target: TDamageTarget): boolean {
-        const role = target.role;
-        const type = String(target.type || '').toLowerCase();
-
-        if (role === GLOBAL_CONFIG.PEOPLE_ECONOMY.ROLE) return true;
-        if (role === GLOBAL_CONFIG.PEOPLE_ARMY.ROLE) return false;
-
-        return PEOPLE_ECONOMY_BUILDING_TYPES.has(type) || PEOPLE_ECONOMY_UNIT_TYPES.has(type);
-    }
-
-    private async damagePeopleTarget(armyGuid: string, target: TDamageTarget): Promise<unknown> {
+    private async damagePeopleUnit(armyGuid: string, unitGuid: string, amount: number): Promise<void> {
         const guids = this.armyGuids[armyGuid];
-        if (!target.unitGuid || !Number.isFinite(Number(target.amount))) return null;
-
-        const amount = Number(target.amount);
-
-        if (this.shouldRouteToPeopleEconomy(target)) {
-            if (!guids?.peopleEconomyGuid) return null;
-            return this.send(
-                `${GLOBAL_CONFIG.PEOPLE_ECONOMY.URL}${GLOBAL_CONFIG.URLS.DAMAGE}`,
-                { peopleEconomy: guids.peopleEconomyGuid, entityGuid: target.unitGuid, damage: amount }
-            );
-        }
-
-        if (!guids?.peopleArmyGuid) return null;
-        return this.send(
+        if (!guids?.peopleArmyGuid) return;
+        await this.send(
             `${GLOBAL_CONFIG.PEOPLE_ARMY.URL}${GLOBAL_CONFIG.URLS.TAKE_DAMAGE_PEOPLE_ARMY}`,
-            { userGuid: guids.peopleArmyGuid, unitGuid: target.unitGuid, damage: amount }
+            { userGuid: guids.peopleArmyGuid, unitGuid, damage: amount }
         );
     }
 
@@ -352,15 +309,94 @@ class ArmyManager extends BaseManager {
         if (army) {
             army.destructor();
         }
-        
+
         const stateManager = this.armyStateManagers[guid];
         if (stateManager) {
             stateManager.destroy();
         }
-        
+
+        // Останавливаем таймер запросов в экономику
+        const interval = this.economyRequestIntervals[guid];
+        if (interval) {
+            clearInterval(interval);
+            delete this.economyRequestIntervals[guid];
+        }
+
         delete this.army[guid];
         delete this.armyStateManagers[guid];
         delete this.armyGuids[guid];
+    }
+
+    private startEconomyRequests(armyGuid: string, mushroomsEconomyGuid: string): void {
+        const url = `${GLOBAL_CONFIG.MUSHROOMS_ECONOMY.URL}${GLOBAL_CONFIG.URLS.REQUEST_UNITS}`;
+        
+        // Целевое соотношение: 40% champigneb, 40% sporomet, 10% eblekar, 10% pizdoglyad
+        const TARGET_RATIOS = {
+            champigneb: 0.40,
+            sporomet: 0.40,
+            eblekar: 0.10,
+            pizdoglyad: 0.10
+        };
+
+        const getUnitTypeToSpawn = (): 'sporomet' | 'champigneb' | 'eblekar' | 'pizdoglyad' => {
+            const army = this.army[armyGuid];
+            if (!army) return 'sporomet';
+
+            const units = army.units;
+            const totalUnits = units.length;
+            
+            if (totalUnits === 0) {
+                // Если нет юнитов, начинаем с champigneb
+                return 'champigneb';
+            }
+
+            // Считаем текущее количество каждого типа
+            const counts = {
+                champigneb: 0,
+                sporomet: 0,
+                eblekar: 0,
+                pizdoglyad: 0
+            };
+
+            for (const unit of units) {
+                if (unit.type in counts) {
+                    counts[unit.type as keyof typeof counts]++;
+                }
+            }
+
+            // Находим тип с наибольшим отклонением от целевого соотношения
+            let maxDeviation = -1;
+            let typeToSpawn: 'sporomet' | 'champigneb' | 'eblekar' | 'pizdoglyad' = 'sporomet';
+
+            for (const [type, targetRatio] of Object.entries(TARGET_RATIOS)) {
+                const currentRatio = counts[type as keyof typeof counts] / totalUnits;
+                const deviation = targetRatio - currentRatio;
+                
+                if (deviation > maxDeviation) {
+                    maxDeviation = deviation;
+                    typeToSpawn = type as 'sporomet' | 'champigneb' | 'eblekar' | 'pizdoglyad';
+                }
+            }
+
+            return typeToSpawn;
+        };
+
+        // Каждую секунду отправляем запрос на создание одного юнита
+        this.economyRequestIntervals[armyGuid] = setInterval(async () => {
+            try {
+                const unitType = getUnitTypeToSpawn();
+                await this.send(
+                    url,
+                    {
+                        mushroomsEconomy: mushroomsEconomyGuid,
+                        unitsType: unitType,
+                        unitsAmount: 1
+                    }
+                );
+            } catch (error) {
+                console.error('[ArmyManager] Error requesting unit from economy:', error);
+            }
+        }, 1000);
     }
 
     private async handleEconomyRequest(_request: EconomyRequest): Promise<EconomyResponse | null> {
@@ -389,9 +425,10 @@ class ArmyManager extends BaseManager {
         this.io.to(user.socketId).emit('scout_respawned', this.answer.good({ scoutGuid }));
     }
 
-    private async eventStartGame({ guid, map, buildings, mapGuid, peopleArmyGuid, peopleEconomyGuid }: TStartGame): Promise<void> {
-        const user = this.mediator.get(this.TRIGGERS.GET_USER_BY_GUID, guid);
-        if (!user) return;
+    private async eventStartGame({ guid, map, buildings, mapGuid, peopleArmyGuid, mushroomsEconomyGuid }: TStartGame): Promise<void> {
+        try {
+            const user = this.mediator.get(this.TRIGGERS.GET_USER_BY_GUID, guid);
+            if (!user) return;
 
         if (this.army[guid]) {
             this.destroyArmy(guid);
@@ -416,10 +453,7 @@ class ArmyManager extends BaseManager {
             finalBuildings = Army.generateDefensiveLayout(resolvedMap, this.common);
         }
 
-        this.armyGuids[guid] = {
-            peopleArmyGuid: peopleArmyGuid ?? null,
-            peopleEconomyGuid: peopleEconomyGuid ?? null,
-        };
+        this.armyGuids[guid] = { peopleArmyGuid: peopleArmyGuid ?? null, mushroomsEconomyGuid: mushroomsEconomyGuid ?? null };
         this.army[guid] = new Army({
             mapGuid,
             map: resolvedMap,
@@ -428,7 +462,7 @@ class ArmyManager extends BaseManager {
             guid,
             callbacks: {
                 update: (guid: string, armyState: TArmyState) => this.updateArmyCallback(guid, armyState),
-                takeDamage: (target: TDamageTarget) => this.damagePeopleTarget(guid, target),
+                takeDamage: (unitGuid: string, amount: number) => this.damagePeopleUnit(guid, unitGuid, amount),
             }
         });
 
@@ -441,9 +475,17 @@ class ArmyManager extends BaseManager {
             economyRequestCallback: (request) => this.handleEconomyRequest(request),
         });
 
+        // Запускаем таймер автоматических запросов в экономику на создание юнитов
+        if (mushroomsEconomyGuid) {
+            this.startEconomyRequests(guid, mushroomsEconomyGuid);
+        }
+
         const userObj = this.mediator.get(this.TRIGGERS.GET_USER_BY_GUID, guid) as TUser | null;
         if (userObj?.socketId) {
             this.io.to(userObj.socketId).emit(GAME_STARTED, this.answer.good(true));
+        }
+        } catch (error) {
+            console.error('[ArmyManager] Error in eventStartGame:', error);
         }
     }
 
