@@ -17,8 +17,6 @@ interface Config {
             GET_ARMY: string;
             SPAWN_UNIT: string;
             SPAWN_BUILDING: string;
-            UPDATE_ECONOMY_BUILDINGS: string;
-            TAKE_ECONOMY_DAMAGE: string;
         };
     };
     SOCKET: {
@@ -50,8 +48,6 @@ const CONFIG: Config = {
             GET_ARMY: 'GET_ARMY',
             SPAWN_UNIT: 'SPAWN_UNIT',
             SPAWN_BUILDING: 'SPAWN_BUILDING',
-            UPDATE_ECONOMY_BUILDINGS: 'UPDATE_ECONOMY_BUILDINGS',
-            TAKE_ECONOMY_DAMAGE: 'TAKE_ECONOMY_DAMAGE',
         },
     },
 

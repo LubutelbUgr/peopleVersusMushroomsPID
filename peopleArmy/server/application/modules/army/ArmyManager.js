@@ -1,6 +1,7 @@
 const CONFIG = require('../../../config');
 const BaseManager = require('../../../../../global/modules/BaseManager');
-const { URLS, MAP } = require('../../../../../global/globalConfig');
+const GLOBAL_CONFIG = require('../../../../../global/globalConfig');
+const { URLS } = GLOBAL_CONFIG;
 const Army = require('../../army/Army');
 const { UPDATE_ARMY } = CONFIG.SOCKETS;
 
@@ -25,7 +26,6 @@ class ArmyManager extends BaseManager {
         // mediator trigger setters
         this.mediator.set(this.TRIGGERS.CREATE_UNIT, (data) => this.createUnit(data));
         this.mediator.set(this.TRIGGERS.UNIT_TAKE_DAMAGE, (data) => this.unitTakeDamage(data));
-        this.mediator.set(this.TRIGGERS.MOVE_UNIT, (data) => this.unitMove(data));
     }
 
     async loadUnitTypes() {
@@ -43,25 +43,27 @@ class ArmyManager extends BaseManager {
     }
 
     /* PRIVATE */
-    async updateArmyCallback(guid, data) {
+    async updateArmyCallback(guid) {
         const army = this.army[guid];
         if (!army?.mapGuid) {
             return;
         }
-        // послать в карту И в экономику изменение положения юнитов (просто послать юниты)
-        //...
+
+        // дельта на карту: движение / спавн / смерть (не полный список каждый тик)
+        const entities = army.buildMapUnitUpdateEntities();
+        if (entities.length > 0) {
+            await this.sendToMap(URLS.UPDATE_UNITS, { mapGuid: army.mapGuid, userGuid: guid, entities });
+        }
+
         // запросить видимость
-        const visibility = await this.sendToMap(`${URLS.GET_VISIBILITY}`, { mapGuid: army.mapGuid, userGuid: guid });
+        const visibility = await this.sendToMap(URLS.GET_VISIBILITY, { mapGuid: army.mapGuid, userGuid: guid });
         if (visibility) {
             army.setVisibility(visibility);
         }
 
         const user = this.mediator.get(this.TRIGGERS.GET_USER_BY_GUID, guid);
         if (user) {
-            this.io.to(user.socketId).emit(
-                UPDATE_ARMY,
-                this.answer.good(army.get())
-            );
+            this.io.to(user.socketId).emit(UPDATE_ARMY, this.answer.good(army.get()));
         }
     }
 
@@ -139,38 +141,55 @@ class ArmyManager extends BaseManager {
         return this.answer.good(result.data);
     }
 
-    unitMove(data) {
-        const userGuid = data?.userGuid;
-        const unitGuid = data?.unitGuid;
-        const x = Number(data?.x);
-        const y = Number(data?.y);
-        if (!userGuid || !unitGuid || !Number.isFinite(x) || !Number.isFinite(y)) {
-            return this.answer.bad(400);
-        }
-        const user = this.mediator.get(this.TRIGGERS.GET_USER_BY_GUID, userGuid);
-        if (!user || !user?.isLogin()) {
-            return this.answer.bad(11);
-        }
-        const army = this.army[userGuid];
-        if (!army) {
-            return this.answer.bad(400);
-        }
-        const unit = army.units.find(unit => unit.guid === unitGuid);
-        if (!unit) {
-            return this.answer.bad(400);
-        }
-        unit.setTarget(x, y);
-        return this.answer.good(true);
-    }
-
-    async damageMushroomsUnit({ armyGuid="123efthgfrds", unitGuid, amount }) {
-        if (!armyGuid || !unitGuid || !Number.isFinite(Number(amount))) {
+    async damageMushroomsUnit({ armyGuid, economyGuid, unitGuid, amount, targetKind, type, role }) {
+        if (!unitGuid || !Number.isFinite(Number(amount))) {
             return null;
         }
+
+        const sanitizedAmount = Number(amount);
+
+        if (targetKind === 'building') {
+            const buildingType = String(type || '').toLowerCase();
+            const MUSHROOMS_ECONOMY_BUILDING_TYPES = new Set([
+                'mycelium', 'incubator', 'reactor', 'small_reactor', 'mine',
+            ]);
+            const normalizedRole = role === 'mushroomEconomy'
+                ? GLOBAL_CONFIG.MUSHROOMS_ECONOMY.ROLE
+                : (role === 'mushroomArmy' ? GLOBAL_CONFIG.MUSHROOMS_ARMY.ROLE : role);
+
+            const routeToEconomy =
+                normalizedRole === GLOBAL_CONFIG.MUSHROOMS_ECONOMY.ROLE
+                || (normalizedRole !== GLOBAL_CONFIG.MUSHROOMS_ARMY.ROLE
+                    && MUSHROOMS_ECONOMY_BUILDING_TYPES.has(buildingType));
+
+            if (routeToEconomy) {
+                if (!economyGuid) {
+                    return null;
+                }
+                return this.sendToMushroomsEconomy(URLS.DAMAGE, {
+                    mushroomsEconomy: economyGuid,
+                    entityGuid: unitGuid,
+                    damage: sanitizedAmount,
+                });
+            }
+            if (!armyGuid) {
+                return null;
+            }
+            return this.sendToMushroomsArmy('/takeDamage', {
+                armyGuid,
+                unitGuid,
+                amount: sanitizedAmount,
+            });
+        }
+
+        if (!armyGuid) {
+            return null;
+        }
+
         return this.sendToMushroomsArmy('/takeDamage', {
             armyGuid,
             unitGuid,
-            amount: Number(amount),
+            amount: sanitizedAmount,
         });
     }
 
@@ -197,7 +216,7 @@ class ArmyManager extends BaseManager {
             }
             this.army[guid] = new Army({ guids, mapGuid, map, buildings: [], unitTypes: this.unitTypes, common: this.common, guid,
                 callbacks: {
-                    update: (guid, data) => this.updateArmyCallback(guid, data),
+                    update: (guid) => this.updateArmyCallback(guid),
                     takeDamage: (payload) => this.damageMushroomsUnit(payload),
                 }
             });
@@ -205,6 +224,7 @@ class ArmyManager extends BaseManager {
                 this.SOCKET.START_GAME,
                 this.answer.good({ map })
             );
+            await this.updateArmyCallback(guid);
         }
     }
 
@@ -214,7 +234,6 @@ class ArmyManager extends BaseManager {
         }
         this.army[guid].destructor();
         delete this.army[guid];
-        this.updateArmyCallback(guid, { units: [] });
         console.log(`армия с guid: ${guid} уничтожена`);
     }
 

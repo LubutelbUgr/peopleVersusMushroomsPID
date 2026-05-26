@@ -16,8 +16,13 @@ export const SPRITE = {
     INCUBATOR: 11,
     SMALL_REACTOR: 8,
     REACTOR_CONSUMED_ANIM: 9,
+    REACTOR: 8, // size = 2
     FALLBACK: 7,
-} as const;
+    WORKER: 12,
+    MINE: 14,
+    ENEMY_BUILDING: 13,
+    ENEMY_UNIT: 15,
+};
 
 export const getTerrainSprite = (type: number | null): number =>
     TERRAIN_SPRITES[type ?? 'null'] ?? SPRITE.FALLBACK;

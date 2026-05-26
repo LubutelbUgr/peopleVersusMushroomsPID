@@ -419,7 +419,8 @@ Answer<
             y: number,
             type: string,
             guid: string,
-            visibility: number
+            visibility: number,
+            sourcesVisibility: number  - опциональный параметр для получения видмости ресурсов
         }
     ]
 }
