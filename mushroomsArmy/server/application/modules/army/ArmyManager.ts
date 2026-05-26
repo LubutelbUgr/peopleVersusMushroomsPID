@@ -1,6 +1,6 @@
 import BaseManager, { TManagerOptions } from '../BaseManager';
 import CONFIG from '../../../config';
-import { Army, TMap, TArmyState, TBuildingInput } from '../../army/Army';
+import { Army, TDamageTarget, TMap, TArmyState, TBuildingInput } from '../../army/Army';
 import { ArmyStateManager, ArmyMode, EconomyRequest, EconomyResponse } from '../../army/ArmyStateManager';
 import { Socket } from 'socket.io';
 
@@ -8,7 +8,14 @@ const GLOBAL_CONFIG = require('../../../../../global/globalConfig');
 
 const { GAME_STATE, LOBBY_START, GAME_STARTED } = CONFIG.SOCKET;
 
-type TStartGame = { guid: string; map?: TMap; buildings: TBuildingInput[]; mapGuid: string; peopleArmyGuid?: string | null };
+type TStartGame = {
+    guid: string;
+    map?: TMap;
+    buildings: TBuildingInput[];
+    mapGuid: string;
+    peopleArmyGuid?: string | null;
+    peopleEconomyGuid?: string | null;
+};
 type TTakeDamage = { armyGuid: string; unitGuid: string; amount: number };
 type TMoveUnit = { armyGuid: string; unitGuid: string; x: number; y: number };
 type TGetArmy = string;
@@ -22,6 +29,10 @@ type TVisibleEntity = {
     x: number;
     y: number;
     hp: number;
+    role?: string | null;
+    size?: number;
+    sizeX?: number;
+    sizeY?: number;
 };
 
 type TVisibilityResponse = {
@@ -39,6 +50,18 @@ const PEOPLE_ARMY_DEFAULT_HP: Record<string, number> = {
     sniper: 18,
     partizan: 72,
 };
+const PEOPLE_ECONOMY_BUILDING_TYPES = new Set([
+    'pipe',
+    'oil_barrel',
+    'iron_barrel',
+    'barracks',
+    'small_reactor',
+    'large_reactor',
+    'driller',
+    'mine',
+    'small_generator',
+]);
+const PEOPLE_ECONOMY_UNIT_TYPES = new Set(['worker', 'humanWorker']);
 
 function normalizeMapUnitHp(unit: TVisibleEntity): TVisibleEntity {
     const parsed = Number(unit.hp);
@@ -51,7 +74,7 @@ function normalizeMapUnitHp(unit: TVisibleEntity): TVisibleEntity {
 class ArmyManager extends BaseManager {
     private army: { [guid: string]: Army };
     private armyStateManagers: { [guid: string]: ArmyStateManager };
-    private armyGuids: Record<string, { peopleArmyGuid: string | null }>;
+    private armyGuids: Record<string, { peopleArmyGuid: string | null; peopleEconomyGuid: string | null }>;
 
     constructor(options: TManagerOptions) {
         super(options);
@@ -244,17 +267,24 @@ class ArmyManager extends BaseManager {
         army.economyBuildings = visibleEnemyBuildings.filter(b => ALLIED_ECONOMY_BUILDING_TYPES.has(b.type));
         army.economyUnits     = visibleEnemyUnits.filter(u => ALLIED_ECONOMY_UNIT_TYPES.has(u.type));
 
-        const visibleEnemies: TVisibleEntity[] = [
-            ...visibleEnemyUnits.filter(e => !ALLIED_ECONOMY_UNIT_TYPES.has(e.type)),
-            ...visibleEnemyBuildings.filter(e => !ALLIED_ECONOMY_BUILDING_TYPES.has(e.type)),
-        ];
+        const visibleEnemyUnitTargets = visibleEnemyUnits
+            .filter(e => !ALLIED_ECONOMY_UNIT_TYPES.has(e.type))
+            .map(entity => ({ ...entity, targetKind: 'unit' as const }));
+        const visibleEnemyBuildingTargets = visibleEnemyBuildings
+            .filter(e => !ALLIED_ECONOMY_BUILDING_TYPES.has(e.type))
+            .map(entity => ({ ...entity, targetKind: 'building' as const }));
 
-        const enemyEntities: TBuildingInput[] = visibleEnemies.map(entity => ({
+        const enemyEntities: TBuildingInput[] = [...visibleEnemyUnitTargets, ...visibleEnemyBuildingTargets].map(entity => ({
             guid: entity.guid,
             type: entity.type,
             x: entity.x,
             y: entity.y,
             hp: entity.hp,
+            role: entity.role,
+            targetKind: entity.targetKind,
+            size: entity.size,
+            sizeX: entity.sizeX,
+            sizeY: entity.sizeY,
         }));
         army.updateEnemyEntities(enemyEntities);
 
@@ -286,12 +316,34 @@ class ArmyManager extends BaseManager {
         }));
     }
 
-    private async damagePeopleUnit(armyGuid: string, unitGuid: string, amount: number): Promise<void> {
+    private shouldRouteToPeopleEconomy(target: TDamageTarget): boolean {
+        const role = target.role;
+        const type = String(target.type || '').toLowerCase();
+
+        if (role === GLOBAL_CONFIG.PEOPLE_ECONOMY.ROLE) return true;
+        if (role === GLOBAL_CONFIG.PEOPLE_ARMY.ROLE) return false;
+
+        return PEOPLE_ECONOMY_BUILDING_TYPES.has(type) || PEOPLE_ECONOMY_UNIT_TYPES.has(type);
+    }
+
+    private async damagePeopleTarget(armyGuid: string, target: TDamageTarget): Promise<unknown> {
         const guids = this.armyGuids[armyGuid];
-        if (!guids?.peopleArmyGuid) return;
-        await this.send(
+        if (!target.unitGuid || !Number.isFinite(Number(target.amount))) return null;
+
+        const amount = Number(target.amount);
+
+        if (this.shouldRouteToPeopleEconomy(target)) {
+            if (!guids?.peopleEconomyGuid) return null;
+            return this.send(
+                `${GLOBAL_CONFIG.PEOPLE_ECONOMY.URL}${GLOBAL_CONFIG.URLS.DAMAGE}`,
+                { peopleEconomy: guids.peopleEconomyGuid, entityGuid: target.unitGuid, damage: amount }
+            );
+        }
+
+        if (!guids?.peopleArmyGuid) return null;
+        return this.send(
             `${GLOBAL_CONFIG.PEOPLE_ARMY.URL}${GLOBAL_CONFIG.URLS.TAKE_DAMAGE_PEOPLE_ARMY}`,
-            { userGuid: guids.peopleArmyGuid, unitGuid, damage: amount }
+            { userGuid: guids.peopleArmyGuid, unitGuid: target.unitGuid, damage: amount }
         );
     }
 
@@ -337,7 +389,7 @@ class ArmyManager extends BaseManager {
         this.io.to(user.socketId).emit('scout_respawned', this.answer.good({ scoutGuid }));
     }
 
-    private async eventStartGame({ guid, map, buildings, mapGuid, peopleArmyGuid }: TStartGame): Promise<void> {
+    private async eventStartGame({ guid, map, buildings, mapGuid, peopleArmyGuid, peopleEconomyGuid }: TStartGame): Promise<void> {
         const user = this.mediator.get(this.TRIGGERS.GET_USER_BY_GUID, guid);
         if (!user) return;
 
@@ -364,7 +416,10 @@ class ArmyManager extends BaseManager {
             finalBuildings = Army.generateDefensiveLayout(resolvedMap, this.common);
         }
 
-        this.armyGuids[guid] = { peopleArmyGuid: peopleArmyGuid ?? null };
+        this.armyGuids[guid] = {
+            peopleArmyGuid: peopleArmyGuid ?? null,
+            peopleEconomyGuid: peopleEconomyGuid ?? null,
+        };
         this.army[guid] = new Army({
             mapGuid,
             map: resolvedMap,
@@ -373,7 +428,7 @@ class ArmyManager extends BaseManager {
             guid,
             callbacks: {
                 update: (guid: string, armyState: TArmyState) => this.updateArmyCallback(guid, armyState),
-                takeDamage: (unitGuid: string, amount: number) => this.damagePeopleUnit(guid, unitGuid, amount),
+                takeDamage: (target: TDamageTarget) => this.damagePeopleTarget(guid, target),
             }
         });
 

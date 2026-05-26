@@ -1,5 +1,5 @@
 import { Unit, EnemyUnit, Projectile, EconomyUnit } from '../types';
-import { UNIT_SRCS, PEOPLE_UNIT_SRCS, PIZDOGLYAD_SRCS, champignebExplImages, vzryvomorExplImages, VZRYVOMOR_FRAME_SRCS, SPOROVAYA_BASHNYA_SRCS, economySpritesSrc } from './assets';
+import { UNIT_SRCS, PEOPLE_UNIT_SRCS, PIZDOGLYAD_SRCS, champignebExplImages, vzryvomorExplImages, VZRYVOMOR_FRAME_SRCS, SPOROVAYA_BASHNYA_SRCS, PEOPLE_ECONOMY_BUILDING_SRCS, economySpritesSrc } from './assets';
 import { isImageDrawable, tryDrawImageScaled, getBuildingImage } from './buildingRenderer';
 import { getVzryvomorFrameKey } from './vzryvomorAnimation';
 import { Building, GameState } from '../types';
@@ -26,6 +26,17 @@ const PEOPLE_UNIT_COLORS: Record<string, { fill: string; stroke: string }> = {
 
 const ECONOMY_BUILDING_TYPES = new Set([
   'mycelium', 'incubator', 'reactor', 'small_reactor', 'mine',
+]);
+
+const PEOPLE_ECONOMY_BUILDING_TYPES = new Set([
+  'pipe',
+  'oil_barrel',
+  'iron_barrel',
+  'barracks',
+  'small_reactor',
+  'large_reactor',
+  'driller',
+  'mine',
 ]);
 
 // Спрайт-лист экономики: 32×32 пикселя на спрайт, 32 спрайта в строке (1-индексированные)
@@ -94,6 +105,21 @@ const ECONOMY_BUILDING_CONFIG: Record<string, { label: string; color: string }> 
 };
 
 export const getMaxHp = (type: string): number => MAX_HP[type] ?? 100;
+
+function normalizeBuildingType(type: string): string {
+  return String(type || '').toLowerCase();
+}
+
+function getBuildingSize(building: Building): number {
+  return building.sizeX ?? building.sizeY ?? building.size ?? 1;
+}
+
+function isPeopleEconomyBuilding(building: Building, normalizedType: string): boolean {
+  if (building.role === 'peopleEconomy') return true;
+  if (building.role === 'mushroomsEconomy') return false;
+  return PEOPLE_ECONOMY_BUILDING_TYPES.has(normalizedType)
+    && !ECONOMY_BUILDING_TYPES.has(normalizedType);
+}
 
 const pizdoglyadImages: { idle: HTMLImageElement; walk: HTMLImageElement } = {
   idle: Object.assign(new Image(), { src: PIZDOGLYAD_SRCS.idle }),
@@ -324,6 +350,9 @@ function preloadBuildingImages(): void {
   getBuildingImage('sporovaya_bashnya:idle', SPOROVAYA_BASHNYA_SRCS.idle);
   getBuildingImage('sporovaya_bashnya:attack', SPOROVAYA_BASHNYA_SRCS.attack);
   getBuildingImage('sporovaya_bashnya:destroyed', SPOROVAYA_BASHNYA_SRCS.destroyed);
+  Object.entries(PEOPLE_ECONOMY_BUILDING_SRCS).forEach(([type, src]) => {
+    getBuildingImage(`people_economy:${type}`, src);
+  });
 }
 
 preloadBuildingImages();
@@ -339,9 +368,11 @@ export function drawBuildings(
   updateVzryvomorExplosions(state.buildings ?? [], now);
 
   (state.buildings ?? []).forEach(building => {
-    if (building.hp <= 0 && !ECONOMY_BUILDING_TYPES.has(building.type)) return;
-    const sx = building.sizeX ?? 1;
-    const sy = building.sizeY ?? 1;
+    const buildingType = normalizeBuildingType(building.type);
+    if (building.hp <= 0 && !ECONOMY_BUILDING_TYPES.has(buildingType)) return;
+    const footprintSize = getBuildingSize(building);
+    const sx = building.sizeX ?? footprintSize;
+    const sy = building.sizeY ?? footprintSize;
     let buildingVisibleNow = false;
     for (let yy = 0; yy < sy && !buildingVisibleNow; yy++) {
       for (let xx = 0; xx < sx; xx++) {
@@ -353,14 +384,14 @@ export function drawBuildings(
         }
       }
     }
-    const isFriendly = building.type === 'vzryvomor' || building.type === 'sporovaya_bashnya' || ECONOMY_BUILDING_TYPES.has(building.type);
+    const isFriendly = buildingType === 'vzryvomor' || buildingType === 'sporovaya_bashnya' || ECONOMY_BUILDING_TYPES.has(buildingType);
     if (!buildingVisibleNow && !isFriendly) return;
 
     const bx = building.x * cellW;
     const by = building.y * cellH;
-    const hpPercent = Math.max(0, Math.min(1, building.hp / getMaxHp(building.type)));
+    const hpPercent = Math.max(0, Math.min(1, building.hp / getMaxHp(buildingType)));
 
-    if (building.type === 'vzryvomor') {
+    if (buildingType === 'vzryvomor') {
       if (isVzryvomorExplosionPlaying(building.guid, now) || building.isExploding === true) {
         return;
       }
@@ -397,7 +428,7 @@ export function drawBuildings(
       return;
     }
 
-    if (building.type === 'sporovaya_bashnya') {
+    if (buildingType === 'sporovaya_bashnya') {
       const bsx = building.sizeX ?? 2;
       const bsy = building.sizeY ?? 2;
       const px = bx, py = by;
@@ -430,14 +461,39 @@ export function drawBuildings(
       return;
     }
 
-    const economyBuilding = ECONOMY_BUILDING_CONFIG[building.type];
+    const peopleEconomyBuildingSrc = isPeopleEconomyBuilding(building, buildingType)
+      ? PEOPLE_ECONOMY_BUILDING_SRCS[buildingType]
+      : undefined;
+    if (peopleEconomyBuildingSrc) {
+      const pw = sx * cellW;
+      const ph = sy * cellH;
+      const img = getBuildingImage(`people_economy:${buildingType}`, peopleEconomyBuildingSrc);
+
+      if (!isImageDrawable(img) || !tryDrawImageScaled(ctx, img, bx, by, pw, ph)) {
+        ctx.fillStyle = '#c0392b';
+        ctx.fillRect(bx, by, pw, ph);
+        ctx.strokeStyle = '#7b241c';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(bx, by, pw, ph);
+      }
+
+      if (Number.isFinite(hpPercent) && hpPercent > 0) {
+        ctx.fillStyle = '#d32f2f';
+        ctx.fillRect(bx, by - 6, pw, 4);
+        ctx.fillStyle = '#4caf50';
+        ctx.fillRect(bx, by - 6, pw * hpPercent, 4);
+      }
+      return;
+    }
+
+    const economyBuilding = ECONOMY_BUILDING_CONFIG[buildingType];
     if (economyBuilding) {
       const bw = cellW * 1.4;
       const bh = cellH * 1.4;
       const bOffX = bx - bw / 2 + cellW / 2;
       const bOffY = by - bh / 2 + cellH / 2;
 
-      const spriteNo = getEconomyBuildingSpriteNum(building.type, building.level);
+      const spriteNo = getEconomyBuildingSpriteNum(buildingType, building.level);
       const drawnSprite = spriteNo !== undefined && drawEconomySprite(ctx, spriteNo, bOffX, bOffY, bw, bh);
 
       if (!drawnSprite) {

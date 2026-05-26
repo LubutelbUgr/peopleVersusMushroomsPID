@@ -37,6 +37,8 @@ export type Building = {
   x: number;
   y: number;
   hp: number;
+  role?: string | null;
+  size?: number;
   level?: number;
   visibility?: number;
   sizeX?: number;

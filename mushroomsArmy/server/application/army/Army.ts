@@ -17,10 +17,21 @@ export type TBuildingInput = {
     x: number;
     y: number;
     hp?: number;
+    role?: string | null;
+    targetKind?: 'unit' | 'building';
+    size?: number;
     level?: number;
     attackRange?: number;
     sizeX?: number;
     sizeY?: number;
+};
+
+export type TDamageTarget = {
+    unitGuid: string;
+    amount: number;
+    targetKind?: 'unit' | 'building';
+    type?: string;
+    role?: string | null;
 };
 
 export type TBuildingState = {
@@ -49,7 +60,7 @@ export type TArmyOptions = {
     common: Common;
     callbacks: {
         update: (guid: string, data: TArmyState) => void;
-        takeDamage?: (unitGuid: string, amount: number) => void;
+        takeDamage?: (target: TDamageTarget) => unknown;
     };
 };
 
@@ -79,7 +90,7 @@ export class Army {
     private mapSyncedUnits: Map<string, { x: number; y: number; type: string; visibility: number }> = new Map();
     public callbacks: {
         update: (guid: string, data: TArmyState) => void;
-        takeDamage?: (unitGuid: string, amount: number) => void;
+        takeDamage?: (target: TDamageTarget) => unknown;
     };
     private intervalId: NodeJS.Timeout;
 
@@ -203,7 +214,13 @@ export class Army {
         proxy.takeDamage = (amount: number): void => {
             baseTakeDamage(amount);
             this.syncBuildingDamage(proxy.guid, proxy.hp);
-            this.callbacks.takeDamage?.(proxy.guid, amount);
+            this.callbacks.takeDamage?.({
+                unitGuid: proxy.guid,
+                amount,
+                targetKind: entity.targetKind ?? 'building',
+                type: entity.type,
+                role: entity.role,
+            });
         };
 
         return proxy;
