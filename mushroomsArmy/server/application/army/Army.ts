@@ -93,6 +93,10 @@ export class Army {
     public enemyBuildings: TBuildingInput[] = [];
     public economyBuildings: TBuildingInput[] = [];
     public economyUnits: TBuildingInput[] = [];
+    // Видимость map может возвращать только что убитое здание (пока tombstone не дошёл).
+    // Игнорируем такие guid'ы N мс, чтобы прокси не воскресал.
+    public recentlyKilledGuids: Map<string, number> = new Map();
+    public readonly KILLED_GUID_TTL_MS = 5000;
     // public sentBuildingGuids: Set<string> = new Set();
     /** Последнее состояние юнитов, отданное карте (протокол UPDATE_UNITS). */
     public projectiles: TProjectile[] = [];
@@ -275,6 +279,9 @@ export class Army {
         proxy.takeDamage = (amount: number): void => {
             baseTakeDamage(amount);
             this.syncBuildingDamage(proxy.guid, proxy.hp);
+            if (proxy.hp <= 0) {
+                this.recentlyKilledGuids.set(proxy.guid, Date.now());
+            }
             this.callbacks.takeDamage?.({
                 unitGuid: proxy.guid,
                 amount,
@@ -401,11 +408,22 @@ export class Army {
 
     /** Обновляет цели из видимости: существующим proxy меняет координаты, и создаёт новых по guid. */
     public updateEnemyEntities(entities: TBuildingInput[]): void {
+        // Чистим протухшие записи в кэше убитых
+        const now = Date.now();
+        for (const [guid, killedAt] of this.recentlyKilledGuids.entries()) {
+            if (now - killedAt > this.KILLED_GUID_TTL_MS) {
+                this.recentlyKilledGuids.delete(guid);
+            }
+        }
+
+        // Видимость map может вернуть только что убитое здание (пока tombstone не дошёл)
+        const filtered = entities.filter(e => !this.recentlyKilledGuids.has(e.guid));
+
         const existingEnemiesByGuid = new Map(
             this.enemyUnits.map(enemy => [enemy.guid, enemy] as const)
         );
 
-        this.enemyUnits = entities.map(entity => {
+        this.enemyUnits = filtered.map(entity => {
             const existingEnemy = existingEnemiesByGuid.get(entity.guid);
 
             if (existingEnemy) {
@@ -416,7 +434,7 @@ export class Army {
 
             return this.createEnemyProxy(entity);
         });
-        
+
     }
 
     /**
