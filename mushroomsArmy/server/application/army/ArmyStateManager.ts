@@ -179,7 +179,7 @@ export class ArmyStateManager {
 
             if (allCombat.length === 0) return;
 
-            // Синхронизируем скорость сразу 
+            // Синхронизируем скорость
             this.syncGroupSpeed(allCombat);
 
             const avgX = allCombat.reduce((s, u) => s + u.x, 0) / allCombat.length;
@@ -196,14 +196,14 @@ export class ArmyStateManager {
                 ? Math.sqrt((nearestEnemy.x - avgX) ** 2 + (nearestEnemy.y - avgY) ** 2) <= 25
                 : false;
 
-            // Строим полукруг вокруг центра масс группы лицом в сторону марша
+            // Строим полукруг вокруг центра масс группы
             const slots = this.buildMarchSemicircle(
                 allCombat,
                 avgX, avgY,
                 marchDirX / marchNorm, marchDirY / marchNorm,
                 counts,
             );
-            
+
             this.assignFormationTargets(slots);
 
             const formationReady = allCombat.every(u => {
@@ -231,7 +231,7 @@ export class ArmyStateManager {
                         const slotOffsetX = u.formationTarget.x - avgX;
                         const slotOffsetY = u.formationTarget.y - avgY;
                         u.formationTarget = {
-                            x: Math.max(0, Math.round(slotOffsetX)), // слоты не уходят за карту
+                            x: Math.max(0, Math.round(slotOffsetX)),
                             y: Math.max(0, Math.round(slotOffsetY)),
                         };
                     } else {
@@ -246,16 +246,14 @@ export class ArmyStateManager {
             return;
         }
 
-        // Обычный/оборонительный режим
-        const isDefense = this.metrics.currentMode === 'defense';
+        // Оборонительный режим - армия стоит у базы и атакует всех врагов в пределах видимости
         for (const u of aliveUnits) {
             u.currentSpeed = u.speed;
             u.formationHold = false;
-            // Армия всегда стоит у базы и атакует только врагов в непосредственной близости (5 клеток)
-            u.leashRadius = 5;
+            u.leashRadius = 20;
         }
 
-        // Всегда используем режим обороны - армия не отходит от базы
+        // В оборонительном режиме используем defenceHold
         const slots = planner.updateForCounts(counts, { defenseHold: true });
         this.assignFormationTargets(slots);
 
@@ -275,58 +273,57 @@ export class ArmyStateManager {
         // Динамическая генерация новых линий обороны по продвижению армии отключена.
     }
 
-private buildMarchSemicircle(
-    units: { type: string }[],
-    cx: number, cy: number,
-    dirX: number, dirY: number,
-    counts: { sporomet: number; eblekar: number; champigneb: number },
-): Record<'sporomet' | 'eblekar' | 'champigneb', { x: number; y: number }[]> {
-    const map = this.army.map;
-    const rows = map?.length ?? 0;
-    const cols = map?.[0]?.length ?? 0;
+    private buildMarchSemicircle(
+        units: { type: string }[],
+        cx: number, cy: number,
+        dirX: number, dirY: number,
+        counts: { sporomet: number; eblekar: number; champigneb: number },
+    ): Record<'sporomet' | 'eblekar' | 'champigneb', { x: number; y: number }[]> {
+        const map = this.army.map;
+        const rows = map?.length ?? 0;
+        const cols = map?.[0]?.length ?? 0;
 
-    const isWalkable = (x: number, y: number): boolean => {
-        if (x < 0 || y < 0 || x >= cols || y >= rows) return false;
-        const tile = map[y]?.[x];
-        return tile === 0 || tile === 2;
-    };
+        const isWalkable = (x: number, y: number): boolean => {
+            if (x < 0 || y < 0 || x >= cols || y >= rows) return false;
+            const tile = map[y]?.[x];
+            return tile === 0 || tile === 2;
+        };
 
-    const angle = Math.atan2(dirY, dirX);
-    const arcSlots = (
-        r: number, n: number, spreadRad: number, offsetAngle = 0,
-    ): { x: number; y: number }[] => {
-        if (n === 0) return [];
-        const slots: { x: number; y: number }[] = [];
-        for (let i = 0; i < n; i++) {
-            const t = n > 1 ? (i / (n - 1) - 0.5) * spreadRad : 0;
-            const a = angle + offsetAngle + t;
-            const sx = Math.round(cx + r * Math.cos(a));
-            const sy = Math.round(cy + r * Math.sin(a));
-            // Пробуем слот и ближайших соседей если непроходимо
-            let placed = false;
-            for (let dr = 0; dr <= 2 && !placed; dr++) {
-                for (const [ox, oy] of [[0,0],[1,0],[-1,0],[0,1],[0,-1]]) {
-                    const nx = sx + ox * dr, ny = sy + oy * dr;
-                    if (isWalkable(nx, ny)) {
-                        slots.push({ x: nx, y: ny });
-                        placed = true;
-                        break;
+        const angle = Math.atan2(dirY, dirX);
+        const arcSlots = (
+            r: number, n: number, spreadRad: number, offsetAngle = 0,
+        ): { x: number; y: number }[] => {
+            if (n === 0) return [];
+            const slots: { x: number; y: number }[] = [];
+            for (let i = 0; i < n; i++) {
+                const t = n > 1 ? (i / (n - 1) - 0.5) * spreadRad : 0;
+                const a = angle + offsetAngle + t;
+                const sx = Math.round(cx + r * Math.cos(a));
+                const sy = Math.round(cy + r * Math.sin(a));
+                let placed = false;
+                for (let dr = 0; dr <= 2 && !placed; dr++) {
+                    for (const [ox, oy] of [[0,0],[1,0],[-1,0],[0,1],[0,-1]]) {
+                        const nx = sx + ox * dr, ny = sy + oy * dr;
+                        if (isWalkable(nx, ny)) {
+                            slots.push({ x: nx, y: ny });
+                            placed = true;
+                            break;
+                        }
                     }
                 }
+                if (!placed) slots.push({ x: Math.max(0, sx), y: Math.max(0, sy) });
             }
-            if (!placed) slots.push({ x: Math.max(0, sx), y: Math.max(0, sy) });
-        }
-        return slots;
-    };
-    
-    const champSlots = arcSlots(8, counts.champigneb, Math.PI * 0.8);
-    const sporSlots = arcSlots(4, counts.sporomet, Math.PI * 0.7);
-    const eblSlots = arcSlots(4, counts.eblekar, Math.PI * 0.7, Math.PI);
+            return slots;
+        };
 
-    return { champigneb: champSlots, sporomet: sporSlots, eblekar: eblSlots };
-}
+        const champSlots = arcSlots(8, counts.champigneb, Math.PI * 0.8);
+        const sporSlots = arcSlots(4, counts.sporomet, Math.PI * 0.7);
+        const eblSlots = arcSlots(4, counts.eblekar, Math.PI * 0.7, Math.PI);
 
-    private findNearestEnemy(fromX: number, fromY: number,): { x: number; y: number } | null {
+        return { champigneb: champSlots, sporomet: sporSlots, eblekar: eblSlots };
+    }
+
+    private findNearestEnemy(fromX: number, fromY: number): { x: number; y: number } | null {
         const targets: { x: number; y: number }[] = [
             ...this.army.enemyUnits.filter(u => u.isAlive),
             ...this.army.enemyBuildings.filter(b => (b.hp ?? 1) > 0),
@@ -411,15 +408,15 @@ private buildMarchSemicircle(
         this.metrics.buildingsAlive = this.army.buildings.filter(b => b.isAlive).length;
     }
 
-    //Обновляет режим
+    //Обновляет режим: атака при >100 юнитов, оборона при <20
     private updateMode(): void {
         const count = this.metrics.aliveUnitsCount;
         let newMode: ArmyMode = 'balanced';
 
-        if (count < 50) {
-            newMode = 'defense';
-        } else if (count > 100) {
+        if (count > 100) {
             newMode = 'attack';
+        } else if (count < 20) {
+            newMode = 'defense';
         }
 
         if (newMode !== this.metrics.currentMode) {
