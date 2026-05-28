@@ -7,11 +7,11 @@ module.exports = (mediator, answer) => (req, res) => {
         return res.send(answer.bad(242));
     }
 
-    const response = mediator.call(MOVE_UNIT, { guid, mushroomsEconomy });
+    const success = mediator.call(MOVE_UNIT, { guid, mushroomsEconomy });
 
-    if (response?.result) {
-        return res.send(response);
+    if (!success) {
+        return res.send(answer.bad(4003));
     }
 
-    return res.send(answer.bad(4003));
+    return res.send(answer.good(true));
 };

@@ -1,5 +1,4 @@
 const { THREAT_BY_ENEMY_TYPE, MARCH_OBJECTIVE } = require('./constants');
-const { filterCombatEnemyUnits } = require('./enemyFilters');
 
 function aimPoint(target) {
     const x = Number(target.x);
@@ -21,8 +20,7 @@ function threatOf(entity) {
  */
 function buildSenseSnapshot(army) {
     const { units: shootableUnits, buildings: shootableBuildings } = army.getShootableTargets();
-    const combatUnits = filterCombatEnemyUnits(shootableUnits);
-    const allTargets = [...combatUnits, ...shootableBuildings];
+    const allTargets = [...shootableUnits, ...shootableBuildings];
 
     let sumX = 0;
     let sumY = 0;
@@ -75,7 +73,7 @@ function buildSenseSnapshot(army) {
         hasVisibleEnemies,
         marchObjective: MARCH_OBJECTIVE,
         forward: { dx: forwardDx, dy: forwardDy },
-        units: combatUnits,
+        units: shootableUnits,
         buildings: shootableBuildings,
         allTargets,
         threatByGuid: new Map(allTargets.map((t) => [t.guid, threatOf(t)])),

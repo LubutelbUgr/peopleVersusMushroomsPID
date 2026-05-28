@@ -16,10 +16,10 @@ module.exports = (mediator, answer) => {
         
         const response = mediator.call(START_GAME, {guids}); //Тут startPoint дополнительно к guid
 
-        if (response?.result) {
-            return res.send(response);
+        if (response && response.error) {
+            return res.send(answer.bad(response.error));
         }
-
-        return res.send(answer.bad(9000));
+        
+        res.send(answer.good(response));
     };
 };

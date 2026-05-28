@@ -26,8 +26,8 @@ const CONFIG = {
             RADIUS: 10, //максимальный радиус расчета ближайшей точки от центра стремления(больше 20 не ставить)
         },
         WORKER: {
-            HP: 60,
-            SPEED: 0.02,
+            HP: 150,
+            SPEED: 2,
             TYPE: "worker",
             VISIBILITY: 3,
         },
@@ -88,7 +88,7 @@ const CONFIG = {
                 type: 'BARRACKS', 
                 priority: 3,
                 size: 2,
-                hp: 200,
+                hp: 300,
                 visibility: 4,
                 consumption: 4,
                 production: 0,
@@ -104,7 +104,7 @@ const CONFIG = {
                 hp: 20,
                 visibility: 2,
                 consumption: 2,
-                production: 6,
+                production: 8,
                 capacity: {
                     OIL: 4,
                     IRON: 0
@@ -119,7 +119,7 @@ const CONFIG = {
                 consumption: 4,
                 production: 20,
                 capacity: {
-                    OIL: 12,
+                    OIL: 8,
                     IRON: 0
                 },
             },
@@ -127,12 +127,12 @@ const CONFIG = {
                 type: 'DRILLER', 
                 priority: 2,
                 size: 1,
-                hp: 50,
+                hp: 30,
                 visibility: 3,
                 consumption: 2,
                 production: 4,
                 capacity: {
-                    OIL: 10,
+                    OIL: 6,
                     IRON: 0
                 },
             },
@@ -140,41 +140,41 @@ const CONFIG = {
                 type: 'MINE', 
                 priority: 2,
                 size: 1,
-                hp: 60,
+                hp: 30,
                 visibility: 3,
                 consumption: 2,
                 production: 2,
                 capacity: {
                     OIL: 0,
-                    IRON: 10
+                    IRON: 6
                 },
             }
         },
 
         UNITS: {
             BMP: {
-                COST: 130,
-                INERTIA: 3250,
+                COST: 120,
+                INERTIA: 300,
                 TYPE: 'bmp'
             },
             PARTIZAN: {
-                COST: 55,
-                INERTIA: 1550,
+                COST: 50,
+                INERTIA: 140,
                 TYPE: 'partizan'
             },
             SNIPER: {
-                COST: 45,
-                INERTIA: 1800,
+                COST: 40,
+                INERTIA: 100,
                 TYPE: 'sniper'
             },
             SOLDIER: {
                 COST: 30,
-                INERTIA: 1360,
+                INERTIA: 60,
                 TYPE: 'soldier'
             },
             WORKER: {
-                COST: 35,
-                INERTIA: 1360,
+                COST: 40,
+                INERTIA: 60,
                 TYPE: 'worker'
             }
         },

@@ -53,42 +53,39 @@ describe('Game start handler', () => {
     });
   });
 
-  it('должен отправить успешный ответ, если mediator.call вернул answer.good', () => {
-    const responseFromMediator = { result: 'ok', data: { gameId: 42, status: 'started' } };
+  it('должен отправить успешный ответ, если mediator.call вернул объект без ошибки', () => {
+    const responseFromMediator = { gameId: 42, status: 'started' };
     mediator.call.mockReturnValue(responseFromMediator);
 
     const handler = createHandler(mediator, answer);
     handler(req, res);
 
-    expect(res.send).toHaveBeenCalledWith(responseFromMediator);
-    expect(answer.good).not.toHaveBeenCalled();
+    expect(answer.good).toHaveBeenCalledWith(responseFromMediator);
+    expect(res.send).toHaveBeenCalledWith(answer.good(responseFromMediator));
     expect(answer.bad).not.toHaveBeenCalled();
   });
 
-  it('должен отправить ответ с ошибкой, если mediator.call вернул answer.bad', () => {
-    const errorResponse = {
-      result: 'error',
-      error: { code: 4001, message: 'экономики с таким гуидом нету' },
-    };
+  it('должен отправить ответ с ошибкой, если mediator.call вернул объект с error', () => {
+    const errorResponse = { error: 'Not enough players' };
     mediator.call.mockReturnValue(errorResponse);
 
     const handler = createHandler(mediator, answer);
     handler(req, res);
 
-    expect(res.send).toHaveBeenCalledWith(errorResponse);
+    expect(answer.bad).toHaveBeenCalledWith('Not enough players');
+    expect(res.send).toHaveBeenCalledWith(answer.bad('Not enough players'));
     expect(answer.good).not.toHaveBeenCalled();
-    expect(answer.bad).not.toHaveBeenCalled();
   });
 
-  it('должен вернуть 9000, когда ответ от mediator равен undefined', () => {
+  it('должен корректно обрабатывать ситуацию, когда ответ от mediator равен undefined', () => {
     mediator.call.mockReturnValue(undefined);
 
     const handler = createHandler(mediator, answer);
     handler(req, res);
 
-    expect(answer.bad).toHaveBeenCalledWith(9000);
-    expect(res.send).toHaveBeenCalledWith(answer.bad(9000));
-    expect(answer.good).not.toHaveBeenCalled();
+    expect(answer.good).toHaveBeenCalledWith(undefined);
+    expect(res.send).toHaveBeenCalledWith(answer.good(undefined));
+    expect(answer.bad).not.toHaveBeenCalled();
   });
 
   it('должен логировать объект guids в консоль', () => {

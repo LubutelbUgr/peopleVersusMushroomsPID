@@ -3,7 +3,6 @@ const { buildSenseSnapshot, aimPoint } = require('./sensing');
 const { pickEngageTarget, pickShootTarget } = require('./targeting');
 const { hasLineOfSight } = require('./lineOfSight');
 const { findNearestWalkableTile, buildPathGrid, findNearestReachableTile } = require('../pathGrid');
-const { filterCombatEnemyUnits } = require('./enemyFilters');
 
 /**
  * Упрощённая тактика:
@@ -46,8 +45,7 @@ class TacticalController {
 
         this.simTime += deltaSec;
         const { units: enemyUnits, buildings: enemyBuildings } = army.getShootableTargets();
-        const combatUnits = filterCombatEnemyUnits(enemyUnits);
-        if (!combatUnits.length && !enemyBuildings.length) {
+        if (!enemyUnits.length && !enemyBuildings.length) {
             return;
         }
 
@@ -63,7 +61,7 @@ class TacticalController {
                 continue;
             }
 
-            const target = pickShootTarget(army, unit, combatUnits, enemyBuildings, army.map);
+            const target = pickShootTarget(army, unit, enemyUnits, enemyBuildings, army.map);
             if (!target) {
                 continue;
             }
@@ -97,7 +95,6 @@ class TacticalController {
     executeMovement() {
         const army = this.army;
         const { units: enemyUnits, buildings: enemyBuildings } = army.getShootableTargets();
-        const combatUnits = filterCombatEnemyUnits(enemyUnits);
         const grid = buildPathGrid(army.map, army.alliedBuildings);
 
         for (const unit of army.units) {
@@ -116,7 +113,7 @@ class TacticalController {
                 return hasLineOfSight(army.map, unit.x, unit.y, aim.x, aim.y);
             });
 
-            if (canShootNow(combatUnits) || canShootNow(enemyBuildings)) {
+            if (canShootNow(enemyUnits) || canShootNow(enemyBuildings)) {
                 unit.path = [];
                 unit.walkPoints = 0;
                 continue;

@@ -58,7 +58,7 @@ class Barracks extends Building {
                 }
                 break
             case WORKER.TYPE:
-                if (this.check(WORKER)) {
+                if (this.chech(WORKER)) {
                     this.callbacks.createUnit(unitData);
                     return WORKER.COST;
                 }
