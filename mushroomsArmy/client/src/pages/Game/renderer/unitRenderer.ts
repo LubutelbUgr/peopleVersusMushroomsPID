@@ -161,51 +161,64 @@ function isPeopleEconomyBuilding(building: Building, normalizedType: string): bo
 const unitMovementState = new Map<
   string,
   {
-    targetX?: number;
-    targetY?: number;
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
     moveStartTime: number;
-    isMoving: boolean;
   }
 >();
+
+//рродолжительность движения между клетками в миллисекундах
+const UNIT_MOVE_DURATION_MS = 300;
+
+// функция для получения интерполированной позиции юнита
+function getInterpolatedUnitPosition(unit: Unit): { x: number; y: number } {
+  const state = unitMovementState.get(unit.guid);
+  if (!state) {
+    return { x: unit.x, y: unit.y };
+  }
+
+  const elapsed = Math.min(Date.now() - state.moveStartTime, UNIT_MOVE_DURATION_MS);
+  const progress = elapsed / UNIT_MOVE_DURATION_MS;
+
+  //если анимация завершена, возвращаем финальную позицию
+  if (progress >= 1) {
+    return { x: state.endX, y: state.endY };
+  }
+
+  const easeProgress = 1 - Math.pow(1 - progress, 3);
+
+  const x = state.startX + (state.endX - state.startX) * easeProgress;
+  const y = state.startY + (state.endY - state.startY) * easeProgress;
+
+  return { x, y };
+}
 
 const unitImages: Record<string, HTMLImageElement> = {};
 const peopleUnitImages: Record<string, HTMLImageElement> = {};
 
 function getUnitImage(unit: Unit): HTMLImageElement | undefined {
   const type = normUnitType(unit.type);
-  const targetX = unit.targetX;
-  const targetY = unit.targetY;
-  const isMoving = targetX !== undefined && targetY !== undefined && (unit.x !== targetX || unit.y !== targetY);
+  const state = unitMovementState.get(unit.guid);
 
-  const prevState = unitMovementState.get(unit.guid);
-  const shouldResetMovement = isMoving && (
-    !prevState ||
-    !prevState.isMoving ||
-    prevState.targetX !== targetX ||
-    prevState.targetY !== targetY
-  );
-
-  if (shouldResetMovement) {
+  //если позиция изменилась запускается  новая анимация
+  if (!state || state.endX !== unit.x || state.endY !== unit.y) {
+    const prevState = state || { endX: unit.x, endY: unit.y };
     unitMovementState.set(unit.guid, {
-      targetX,
-      targetY,
+      startX: prevState.endX,
+      startY: prevState.endY,
+      endX: unit.x,
+      endY: unit.y,
       moveStartTime: Date.now(),
-      isMoving: true,
-    });
-  } else if (prevState) {
-    unitMovementState.set(unit.guid, {
-      targetX: prevState.targetX,
-      targetY: prevState.targetY,
-      moveStartTime: prevState.moveStartTime,
-      isMoving,
     });
   }
 
   const frames = getUnitFrames(type);
   if (frames.length > 0) {
-    if (isMoving) {
-      const state = unitMovementState.get(unit.guid);
-      const startTime = state?.moveStartTime ?? Date.now();
+    if (unit.targetX !== undefined && unit.targetY !== undefined && (unit.x !== unit.targetX || unit.y !== unit.targetY)) {
+      const currentState = unitMovementState.get(unit.guid);
+      const startTime = currentState?.moveStartTime ?? Date.now();
       const frameIndex = Math.floor((Date.now() - startTime) / SPRITE_FRAME_MS) % frames.length;
       return frames[frameIndex];
     }
@@ -679,14 +692,17 @@ export function drawUnits(
 
   units.forEach(unit => {
     if (unit.hp <= 0) return;
-    const ux = Math.floor(unit.x);
-    const uy = Math.floor(unit.y);
+    
+    // Получаем интерполированную позицию
+    const interpolated = getInterpolatedUnitPosition(unit);
+    const ux = Math.floor(interpolated.x);
+    const uy = Math.floor(interpolated.y);
     const isFriendly = unit.type === 'sporomet' || unit.type === 'champigneb' || unit.type === 'eblekar' || unit.type === 'pizdoglyad';
     const unitVisibleNow = circularVisibilityMask[uy]?.[ux] === true;
     if (!unitVisibleNow && !isFriendly) return;
 
-    const cx = unit.x * cellW + cellW / 2;
-    const cy = unit.y * cellH + cellH / 2;
+    const cx = interpolated.x * cellW + cellW / 2;
+    const cy = interpolated.y * cellH + cellH / 2;
     const radius = Math.min(cellW, cellH) * 0.35;
     const size = radius * 2;
 
@@ -715,7 +731,7 @@ export function drawUnits(
     // Рисуем стрелку к цели, если она есть
     if (unit.targetX !== undefined && unit.targetY !== undefined) {
       const arrowColor = unit.type === 'sporomet' ? 'rgba(76, 175, 80, 0.4)' : 'rgba(224, 64, 251, 0.4)';
-      drawTargetArrow(ctx, unit.x, unit.y, unit.targetX, unit.targetY, cellW, cellH, arrowColor);
+      drawTargetArrow(ctx, interpolated.x, interpolated.y, unit.targetX, unit.targetY, cellW, cellH, arrowColor);
     }
   });
 }
@@ -729,12 +745,15 @@ export function drawEnemyUnits(
 ): void {
   units.forEach(unit => {
     if ((unit.hp ?? 1) <= 0) return;
-    const ux = Math.floor(unit.x);
-    const uy = Math.floor(unit.y);
+    
+    // Получаем интерполированную позицию для врагов (используем тот же механизм)
+    const interpolated = getInterpolatedUnitPosition(unit as any);
+    const ux = Math.floor(interpolated.x);
+    const uy = Math.floor(interpolated.y);
     if (circularVisibilityMask[uy]?.[ux] !== true) return;
 
-    const cx = unit.x * cellW + cellW / 2;
-    const cy = unit.y * cellH + cellH / 2;
+    const cx = interpolated.x * cellW + cellW / 2;
+    const cy = interpolated.y * cellH + cellH / 2;
     const radius = Math.min(cellW, cellH) * 0.35;
     const peopleUnitColor = PEOPLE_UNIT_COLORS[unit.type];
 
@@ -800,7 +819,7 @@ export function drawEnemyUnits(
 
     // Рисуем стрелку к цели для врагов, если она есть
     if (unit.targetX !== undefined && unit.targetY !== undefined) {
-      drawTargetArrow(ctx, unit.x, unit.y, unit.targetX, unit.targetY, cellW, cellH, 'rgba(200, 100, 100, 0.4)');
+      drawTargetArrow(ctx, interpolated.x, interpolated.y, unit.targetX, unit.targetY, cellW, cellH, 'rgba(200, 100, 100, 0.4)');
     }
   });
 }
