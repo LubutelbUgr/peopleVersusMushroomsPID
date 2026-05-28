@@ -356,31 +356,11 @@ class ArmyManager extends BaseManager {
 
     private async damageEnemy(armyGuid: string, target: TDamageTarget): Promise<void> {
         const guids = this.armyGuids[armyGuid];
-        if (!guids) {
-            console.log('[ArmyManager] damageEnemy: no guids for army', armyGuid);
-            return;
-        }
+        if (!guids) return;
 
         const route = resolveDamageRoute(target.type ?? '', target.unitGuid, target.amount, guids);
-        if (!route) {
-            console.log('[ArmyManager] damageEnemy: no route for target', {
-                armyGuid,
-                targetGuid: target.unitGuid,
-                targetType: target.type,
-                amount: target.amount,
-                guids
-            });
-            return;
-        }
+        if (!route) return;
 
-        console.log('[ArmyManager] damageEnemy: sending damage', {
-            armyGuid,
-            targetGuid: target.unitGuid,
-            targetType: target.type,
-            targetKind: target.targetKind,
-            amount: target.amount,
-            url: route.url
-        });
         await this.send(route.url, route.body);
     }
 

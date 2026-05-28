@@ -106,20 +106,22 @@ class SporovayaBashnya implements IBuilding<TSporovayaBashnyaState> {
             }
         }
 
-        if (nearestEnemy) {
-            this.isAttacking = true;
-            this.attackingTimer = this.attackAnimDuration;
-            this.projectiles.push({
-                guid: `${this.guid}-${Date.now()}-${Math.random()}`,
-                type: ProjectileType.SPOROVAYA_BASHNYA,
-                fromX: this.x + 1,
-                fromY: this.y + 1,
-                toX: nearestEnemy.x,
-                toY: nearestEnemy.y,
-                createdAt: Date.now(),
-            });
-            nearestEnemy.takeDamage(this.attackDamage);
+        if (!nearestEnemy) {
+            return;
         }
+
+        this.isAttacking = true;
+        this.attackingTimer = this.attackAnimDuration;
+        this.projectiles.push({
+            guid: `${this.guid}-${Date.now()}-${Math.random()}`,
+            type: ProjectileType.SPOROVAYA_BASHNYA,
+            fromX: this.x + 1,
+            fromY: this.y + 1,
+            toX: nearestEnemy.x,
+            toY: nearestEnemy.y,
+            createdAt: Date.now(),
+        });
+        nearestEnemy.takeDamage(this.attackDamage);
     }
 
     public takeDamage(amount: number): void {

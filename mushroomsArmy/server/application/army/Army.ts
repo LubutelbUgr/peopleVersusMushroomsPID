@@ -426,7 +426,9 @@ export class Army {
             }
         }
 
-        return this.enemyUnits.filter(enemy => visibleEnemyGuids.has(enemy.guid));
+        const visibleEnemies = this.enemyUnits.filter(enemy => visibleEnemyGuids.has(enemy.guid));
+
+        return visibleEnemies;
     }
 
     private update(): void {
@@ -447,7 +449,8 @@ export class Army {
 
         // Тикаем все здания — включая мёртвые взрывоморы, ожидающие respawn
         for (const building of this.buildings) {
-            building.update(this.calculateSharedVisibility(), this.map, deltaTime);
+            const sharedVisibility = this.calculateSharedVisibility();
+            building.update(sharedVisibility, this.map, deltaTime);
         }
 
         // Удаляем только те здания, что мертвы И не ждут respawn
