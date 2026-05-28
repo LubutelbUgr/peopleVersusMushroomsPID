@@ -1,5 +1,5 @@
 import { Unit, EnemyUnit, Projectile, EconomyUnit } from '../types';
-import { UNIT_SRCS, PEOPLE_UNIT_SRCS, PIZDOGLYAD_SRCS, champignebExplImages, vzryvomorExplImages, VZRYVOMOR_FRAME_SRCS, SPOROVAYA_BASHNYA_SRCS, PEOPLE_ECONOMY_BUILDING_SRCS, economySpritesSrc } from './assets';
+import { UNIT_SRCS, UNIT_FRAME_SRCS, PEOPLE_UNIT_SRCS, champignebExplImages, vzryvomorExplImages, VZRYVOMOR_FRAME_SRCS, SPOROVAYA_BASHNYA_SRCS, PEOPLE_ECONOMY_BUILDING_SRCS, economySpritesSrc } from './assets';
 import { isImageDrawable, tryDrawImageScaled, getBuildingImage } from './buildingRenderer';
 import { getVzryvomorFrameKey } from './vzryvomorAnimation';
 import { Building, GameState } from '../types';
@@ -104,7 +104,44 @@ const ECONOMY_BUILDING_CONFIG: Record<string, { label: string; color: string }> 
   mine:         { label: 'Ш',  color: '#eab308' },
 };
 
-export const getMaxHp = (type: string): number => MAX_HP[type] ?? 100;
+const SPRITE_FRAME_MS = 180;
+const unitFrameImages: Record<string, HTMLImageElement[]> = {};
+
+function spriteFrameIndex(frameCount: number): number {
+  if (frameCount <= 0) return 0;
+  return Math.floor(Date.now() / SPRITE_FRAME_MS) % frameCount;
+}
+
+function normUnitType(type: string | undefined): string {
+  return String(type || '').trim().toLowerCase();
+}
+
+function getUnitFrames(type: string): HTMLImageElement[] {
+  const key = normUnitType(type);
+  if (unitFrameImages[key]) return unitFrameImages[key];
+  const srcs = UNIT_FRAME_SRCS[key];
+  if (!srcs) return [];
+  const imgs = srcs.map(src => Object.assign(new Image(), { src }));
+  unitFrameImages[key] = imgs;
+  return imgs;
+}
+
+function getUnitMoveProgress(unit: Unit): number | undefined {
+  const targetX = unit.targetX;
+  const targetY = unit.targetY;
+  if (targetX === undefined || targetY === undefined) return undefined;
+  if (unit.x === targetX && unit.y === targetY) return undefined;
+
+  const sourceX = targetX - Math.sign(targetX - unit.x);
+  const sourceY = targetY - Math.sign(targetY - unit.y);
+  const totalDistance = Math.hypot(targetX - sourceX, targetY - sourceY);
+  if (totalDistance <= 0) return undefined;
+
+  const currentDistance = Math.hypot(unit.x - sourceX, unit.y - sourceY);
+  return Math.max(0, Math.min(1, currentDistance / totalDistance));
+}
+
+export const getMaxHp = (type: string): number => MAX_HP[normUnitType(type)] ?? 100;
 
 function normalizeBuildingType(type: string): string {
   return String(type || '').toLowerCase();
@@ -121,44 +158,81 @@ function isPeopleEconomyBuilding(building: Building, normalizedType: string): bo
     && !ECONOMY_BUILDING_TYPES.has(normalizedType);
 }
 
-const pizdoglyadImages: { idle: HTMLImageElement; walk: HTMLImageElement } = {
-  idle: Object.assign(new Image(), { src: PIZDOGLYAD_SRCS.idle }),
-  walk: Object.assign(new Image(), { src: PIZDOGLYAD_SRCS.walk }),
-};
-
-const prevUnitPositions = new Map<string, { x: number; y: number }>();
+const unitMovementState = new Map<
+  string,
+  {
+    targetX?: number;
+    targetY?: number;
+    moveStartTime: number;
+    isMoving: boolean;
+  }
+>();
 
 const unitImages: Record<string, HTMLImageElement> = {};
 const peopleUnitImages: Record<string, HTMLImageElement> = {};
 
 function getUnitImage(unit: Unit): HTMLImageElement | undefined {
-  if (unit.type === 'pizdoglyad') {
-    const prev = prevUnitPositions.get(unit.guid);
-    const isMoving = prev !== undefined && (prev.x !== unit.x || prev.y !== unit.y);
-    prevUnitPositions.set(unit.guid, { x: unit.x, y: unit.y });
-    return isMoving ? pizdoglyadImages.walk : pizdoglyadImages.idle;
+  const type = normUnitType(unit.type);
+  const targetX = unit.targetX;
+  const targetY = unit.targetY;
+  const isMoving = targetX !== undefined && targetY !== undefined && (unit.x !== targetX || unit.y !== targetY);
+
+  const prevState = unitMovementState.get(unit.guid);
+  const shouldResetMovement = isMoving && (
+    !prevState ||
+    !prevState.isMoving ||
+    prevState.targetX !== targetX ||
+    prevState.targetY !== targetY
+  );
+
+  if (shouldResetMovement) {
+    unitMovementState.set(unit.guid, {
+      targetX,
+      targetY,
+      moveStartTime: Date.now(),
+      isMoving: true,
+    });
+  } else if (prevState) {
+    unitMovementState.set(unit.guid, {
+      targetX: prevState.targetX,
+      targetY: prevState.targetY,
+      moveStartTime: prevState.moveStartTime,
+      isMoving,
+    });
   }
 
-  if (!unitImages[unit.type]) {
-    const src = UNIT_SRCS[unit.type];
+  const frames = getUnitFrames(type);
+  if (frames.length > 0) {
+    if (isMoving) {
+      const state = unitMovementState.get(unit.guid);
+      const startTime = state?.moveStartTime ?? Date.now();
+      const frameIndex = Math.floor((Date.now() - startTime) / SPRITE_FRAME_MS) % frames.length;
+      return frames[frameIndex];
+    }
+    return frames[0];
+  }
+
+  if (!unitImages[type]) {
+    const src = UNIT_SRCS[type];
     if (src === undefined) return undefined;
     const img = new Image();
     img.src = src;
-    unitImages[unit.type] = img;
+    unitImages[type] = img;
   }
-  return unitImages[unit.type];
+  return unitImages[type];
 }
 
 function getPeopleUnitImage(unit: EnemyUnit): HTMLImageElement | undefined {
-  if (!peopleUnitImages[unit.type]) {
-    const src = PEOPLE_UNIT_SRCS[unit.type];
+  const type = normUnitType(unit.type);
+  if (!peopleUnitImages[type]) {
+    const src = PEOPLE_UNIT_SRCS[type];
     if (src === undefined) return undefined;
     const img = new Image();
     img.src = src;
-    peopleUnitImages[unit.type] = img;
+    peopleUnitImages[type] = img;
   }
 
-  return peopleUnitImages[unit.type];
+  return peopleUnitImages[type];
 }
 
 const CHAMPIGNEB_EXPL_DURATION = 1000;

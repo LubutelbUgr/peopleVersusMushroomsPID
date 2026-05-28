@@ -10,7 +10,7 @@ import { buildCircularVisibilityMask } from '../../pages/Game/renderer/fogOfWar'
 import sporometImg from '../../assets/units/Sporomet.png';
 import champignebImg from '../../assets/units/Champigneb.png';
 import eblekarImg from '../../assets/units/Eblekar.png';
-import pizdoglyadImg from '../../assets/units/Pizdoglyad1.png';
+import pizdoglyadImg from '../../assets/units/pizdoglyad/Pizdoglyad1.png';
 import vzryvomorImg from '../../assets/buildings/vzryvomor/frame_0.png'
 import sporovayaBashnyaImg from '../../assets/buildings/sporovaya_bashnya/idle.png'
 
