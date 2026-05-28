@@ -114,6 +114,7 @@ export class Army {
     public callbacks: {
         update: (guid: string, data: TArmyState) => void;
         takeDamage?: (target: TDamageTarget) => unknown;
+        scheduleRebuild?: (type: 'sporovaya_bashnya' | 'vzryvomor', x: number, y: number) => void;
     };
     private intervalId: NodeJS.Timeout;
 
@@ -454,12 +455,25 @@ export class Army {
         }
 
         // Удаляем только те здания, что мертвы И не ждут respawn
+        const buildingsToRemove: Array<{ type: string; x: number; y: number }> = [];
         this.buildings = this.buildings.filter(b => {
             if (b.type === 'vzryvomor') {
-                return b.isAlive || (b as unknown as Vzryvomor).respawn.inProgress;
+                const vzryvomor = b as unknown as Vzryvomor;
+                if (!b.isAlive && !vzryvomor.respawn.inProgress) {
+                    buildingsToRemove.push({ type: b.type, x: b.x, y: b.y });
+                }
+                return b.isAlive || vzryvomor.respawn.inProgress;
+            }
+            if (!b.isAlive && b.type === 'sporovaya_bashnya') {
+                buildingsToRemove.push({ type: b.type, x: b.x, y: b.y });
             }
             return b.isAlive;
         });
+
+        // Планируем восстановление уничтоженных зданий
+        for (const building of buildingsToRemove) {
+            this.callbacks.scheduleRebuild?.(building.type as 'sporovaya_bashnya' | 'vzryvomor', building.x, building.y);
+        }
 
         this.units = this.units.filter(unit => {
             return unit.isAlive;

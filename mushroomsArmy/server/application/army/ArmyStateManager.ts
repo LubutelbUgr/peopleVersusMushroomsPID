@@ -40,17 +40,14 @@ export interface ArmyStateManagerOptions {
 
 export interface EconomyRequest {
     armyGuid: string;
-    requestType: 'resources' | 'can_build' | 'production_status';
-    data?: Record<string, unknown>;
+    requestType: 'request_buildings';
+    data?: {
+        buildingType: string;
+    };
 }
 
 export interface EconomyResponse {
     success: boolean;
-    data?: {
-        resources?: { gold?: number; food?: number; wood?: number };
-        canBuild?: boolean;
-        production?: { queue: string[]; eta: number };
-    };
 }
 
 export interface BuildQueueItem {
@@ -58,6 +55,7 @@ export interface BuildQueueItem {
     x: number;
     y: number;
     scheduledAt: number;
+    isRebuild?: boolean; // флаг, что это восстановление уничтоженного здания
 }
 
 export class ArmyStateManager {
@@ -89,6 +87,7 @@ export class ArmyStateManager {
     private buildQueue: BuildQueueItem[] = [];
     private readonly TOWER_BUILD_INTERVAL = 180000; // 180 сек
     private readonly WALL_BUILD_INTERVAL = 30000; // 30 сек
+    private readonly REBUILD_DELAY = 10000; // 10 сек для восстановления уничтоженного здания
     private lastTowerBuild = 0;
     private lastWallBuild = 0;
 
@@ -535,6 +534,9 @@ export class ArmyStateManager {
     private async processAutoBuild(): Promise<void> {
         const now = Date.now();
 
+        // Обработка очереди восстановления уничтоженных зданий
+        await this.processRebuildQueue(now);
+
         // Постройка башни каждые 180 сек
         if (now - this.lastTowerBuild >= this.TOWER_BUILD_INTERVAL) {
             await this.tryBuildStructure('sporovaya_bashnya');
@@ -548,34 +550,54 @@ export class ArmyStateManager {
         }
     }
 
-    private async tryBuildStructure(type: 'sporovaya_bashnya' | 'vzryvomor'): Promise<void> {
-        if (this.economyRequestCallback) {
-            const response = await this.economyRequestCallback({
-                armyGuid: this.army.guid,
-                requestType: 'can_build',
-                data: { buildingType: type },
-            });
+    private async processRebuildQueue(now: number): Promise<void> {
+        const readyToRebuild = this.buildQueue.filter(item => 
+            item.isRebuild && (now - item.scheduledAt >= this.REBUILD_DELAY)
+        );
 
-            if (!response?.success || !response.data?.canBuild) {
-                return; // Недостаточно ресурсов
-            }
+        for (const item of readyToRebuild) {
+            await this.tryBuildStructure(item.type, item.x, item.y);
         }
 
-        // Ищем место для постройки
-        const position = this.findBuildPosition(type);
+        // Удаляем обработанные элементы из очереди
+        this.buildQueue = this.buildQueue.filter(item => 
+            !item.isRebuild || (now - item.scheduledAt < this.REBUILD_DELAY)
+        );
+    }
+
+    public scheduleRebuild(type: 'sporovaya_bashnya' | 'vzryvomor', x: number, y: number): void {
+        this.buildQueue.push({
+            type,
+            x,
+            y,
+            scheduledAt: Date.now(),
+            isRebuild: true
+        });
+    }
+
+    private async tryBuildStructure(
+        type: 'sporovaya_bashnya' | 'vzryvomor',
+        fixedX?: number,
+        fixedY?: number
+    ): Promise<void> {
+        if (!this.economyRequestCallback) return;
+
+        const response = await this.economyRequestCallback({
+            armyGuid: this.army.guid,
+            requestType: 'request_buildings',
+            data: { buildingType: type },
+        });
+
+        if (!response?.success) return;
+
+        // Ищем место для постройки (если не задано фиксированное место)
+        const position = fixedX !== undefined && fixedY !== undefined
+            ? { x: fixedX, y: fixedY }
+            : this.findBuildPosition(type);
         if (!position) return;
 
         // Строим
-        const result = this.army.spawnBuilding(type, position.x, position.y, this.common);
-        if (result) {
-            if (this.economyRequestCallback) {
-                await this.economyRequestCallback({
-                    armyGuid: this.army.guid,
-                    requestType: 'resources',
-                    data: { action: 'spend', buildingType: type },
-                });
-            }
-        }
+        this.army.spawnBuilding(type, position.x, position.y, this.common);
     }
 
     private findBuildPosition(type: 'sporovaya_bashnya' | 'vzryvomor'): { x: number; y: number } | null {

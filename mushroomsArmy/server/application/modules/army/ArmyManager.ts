@@ -459,9 +459,23 @@ class ArmyManager extends BaseManager {
         }, 1000);
     }
 
-    private async handleEconomyRequest(_request: EconomyRequest): Promise<EconomyResponse | null> {
-        // Интеграция с сервисом экономики не реализована
-        return null;
+    private async handleEconomyRequest(request: EconomyRequest): Promise<EconomyResponse | null> {
+        const guids = this.armyGuids[request.armyGuid];
+        if (!guids || !guids.mushroomsEconomyGuid) {
+            return { success: false };
+        }
+
+        const url = `${GLOBAL_CONFIG.MUSHROOMS_ECONOMY.URL}${GLOBAL_CONFIG.URLS.REQUEST_BUILDINGS}`;
+        const response = await this.send(
+            url,
+            {
+                mushroomsEconomy: guids.mushroomsEconomyGuid,
+                buildingsType: request.data?.buildingType,
+                buildingsAmount: 1,
+            }
+        );
+
+        return response ? { success: true } : { success: false };
     }
 
     private handleModeChange(armyGuid: string, newMode: ArmyMode): void {
@@ -527,7 +541,8 @@ class ArmyManager extends BaseManager {
             callbacks: {
                 update: (guid: string, armyState: TArmyState) => this.updateArmyCallback(guid, armyState),
                 takeDamage: (target: TDamageTarget) => this.damageEnemy(guid, target),
-            }
+                scheduleRebuild: (type: 'sporovaya_bashnya' | 'vzryvomor', x: number, y: number) => this.armyStateManagers[guid]?.scheduleRebuild(type, x, y),
+            } as any
         });
 
         this.armyStateManagers[guid] = new ArmyStateManager({
