@@ -251,12 +251,12 @@ export class ArmyStateManager {
         for (const u of aliveUnits) {
             u.currentSpeed = u.speed;
             u.formationHold = false;
-            // В режиме обороны — ограничиваем поводок: юниты атакуют врагов,
-            // подошедших близко, но не уходят далеко от своего слота в строю.
-            u.leashRadius = isDefense ? 10 : Infinity;
+            // Армия всегда стоит у базы и атакует только врагов в непосредственной близости (5 клеток)
+            u.leashRadius = 5;
         }
 
-        const slots = planner.updateForCounts(counts, { defenseHold: isDefense });
+        // Всегда используем режим обороны - армия не отходит от базы
+        const slots = planner.updateForCounts(counts, { defenseHold: true });
         this.assignFormationTargets(slots);
 
         // Settle-detection (spec §5): юниты в transit и без слота не считаются —

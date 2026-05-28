@@ -112,50 +112,55 @@ export class FormationPlanner {
             this.lShellCells(d + L_STEP).length +
             this.lShellCells(d + 2 * L_STEP).length;
 
-        // Расширение: немедленно, пока юниты не помещаются ИЛИ inner L не вмещает
-        // всех лекарей при шаге EBLEKAR_SLOT_STRIDE (иначе один лекарь оказался бы
-        // без слота и убежал бы лечить раненых на 1-й линии).
-        // Жёсткий потолок формации в режиме обороны.
-        // Внешняя оболочка формации = currentDStart + 2*L_STEP.
-        // Чтобы армия стояла ПОЗАДИ взрывоморов (wall на d = lastWallRingIdx*L_STEP),
-        // нужно: currentDStart + 2*L_STEP < wall_d, т.е.
-        // maxDefenseD = (lastWallRingIdx - 2) * L_STEP.
-        // While-цикл останавливается при currentDStart+L_STEP > maxDefenseD,
-        // значит max currentDStart = (lastWallRingIdx-2)*L_STEP - 1 → outer = wall_d - 1.
-        // В небоевом режиме — стандартный буфер вперёд до следующего тригера.
-        const maxDefenseD = defenseHold
-            ? Math.max(MIN_D, (this.lastWallRingIdx - 2) * L_STEP)
-            : this.lastWallRingIdx * L_STEP + WALL_TRIGGER_RINGS * L_STEP;
-        const eblekarStrideCapacity = (d: number): number =>
-            Math.ceil(this.lShellCells(d).length / EBLEKAR_SLOT_STRIDE);
-        while (
-            (capacityAt(this.currentDStart) < total
-             || eblekarStrideCapacity(this.currentDStart) < remaining.eblekar)
-            && this.currentDStart + L_STEP < maxD
-            && this.currentDStart + L_STEP <= maxDefenseD
-        ) {
-            this.currentDStart += L_STEP;
-        }
+        // В оборонительном режиме армия всегда стоит у базы, не отходит независимо от количества
+        if (defenseHold) {
+            this.currentDStart = MIN_D;
+        } else {
+            // Расширение: немедленно, пока юниты не помещаются ИЛИ inner L не вмещает
+            // всех лекарей при шаге EBLEKAR_SLOT_STRIDE (иначе один лекарь оказался бы
+            // без слота и убежал бы лечить раненых на 1-й линии).
+            const maxDefenseD = this.lastWallRingIdx * L_STEP + WALL_TRIGGER_RINGS * L_STEP;
+            const eblekarStrideCapacity = (d: number): number =>
+                Math.ceil(this.lShellCells(d).length / EBLEKAR_SLOT_STRIDE);
+            while (
+                (capacityAt(this.currentDStart) < total
+                 || eblekarStrideCapacity(this.currentDStart) < remaining.eblekar)
+                && this.currentDStart + L_STEP < maxD
+                && this.currentDStart + L_STEP <= maxDefenseD
+            ) {
+                this.currentDStart += L_STEP;
+            }
 
-        // Схлопывание: одно кольцо за раз с кулдауном — без тряски при потерях.
-        if (this.contractionCooldown > 0) {
-            this.contractionCooldown--;
-        } else if (this.currentDStart > MIN_D) {
-            const smallerD = Math.max(MIN_D, this.currentDStart - L_STEP);
-            if (total <= Math.floor(capacityAt(smallerD) * SHRINK_THRESHOLD)) {
-                this.currentDStart = smallerD;
-                this.contractionCooldown = SHRINK_COOLDOWN;
+            // Схлопывание: одно кольцо за раз с кулдауном — без тряски при потерях.
+            if (this.contractionCooldown > 0) {
+                this.contractionCooldown--;
+            } else if (this.currentDStart > MIN_D) {
+                const smallerD = Math.max(MIN_D, this.currentDStart - L_STEP);
+                if (total <= Math.floor(capacityAt(smallerD) * SHRINK_THRESHOLD)) {
+                    this.currentDStart = smallerD;
+                    this.contractionCooldown = SHRINK_COOLDOWN;
+                }
             }
         }
 
         const dStart = this.currentDStart;
-        const innerCells = this.lShellCells(dStart);
-        const middleCells = this.lShellCells(dStart + L_STEP);
-        const outerCells = this.lShellCells(dStart + 2 * L_STEP);
+
+        // В оборонительном режиме используем 3 фиксированных кольца на минимальном расстоянии
+        // но не расширяем их при увеличении количества юнитов
+        let innerCells: FormationSlotPos[], middleCells: FormationSlotPos[], outerCells: FormationSlotPos[];
+        if (defenseHold) {
+            innerCells = this.lShellCells(MIN_D);
+            middleCells = this.lShellCells(MIN_D + L_STEP);
+            outerCells = this.lShellCells(MIN_D + 2 * L_STEP);
+        } else {
+            innerCells = this.lShellCells(dStart);
+            middleCells = this.lShellCells(dStart + L_STEP);
+            outerCells = this.lShellCells(dStart + 2 * L_STEP);
+        }
 
         // Лекари — на inner L (3-я линия фронта, в тылу за боевыми).
         // Распределяем по обоим плечам с шагом ~8 клеток (stride 2 слота).
-        const innerArms = this.lShellArms(dStart);
+        const innerArms = this.lShellArms(defenseHold ? MIN_D : dStart);
         const eblekarCells = this.distributeEblekars(innerArms, remaining.eblekar);
         result.eblekar.push(...eblekarCells);
         remaining.eblekar -= eblekarCells.length;
