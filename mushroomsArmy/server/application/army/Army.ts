@@ -102,8 +102,6 @@ export class Army {
     public projectiles: TProjectile[] = [];
     private mapSyncedUnits = new Map<string, { x: number; y: number; type: string; visibility: number }>();
     public mapSyncedBuildings = new Map<string, { guid: string; x: number; y: number; type: string; visibility: number; size: number }>();
-    /** Счетчик пиздоглядов для присвоения индексов зон */
-    private pizdoglyadCounter: number = 0;
     public callbacks: {
         update: (guid: string, data: TArmyState) => void;
         takeDamage?: (target: TDamageTarget) => unknown;
@@ -180,7 +178,7 @@ export class Army {
     private buildingStateToMapEntity(state: TBuildingState): TMapBuildingEntity {
         const sizeX = state.sizeX ?? 1;
         const sizeY = state.sizeY ?? 1;
-        
+
         return {
             guid: state.guid,
             x: state.x,
@@ -206,7 +204,7 @@ export class Army {
             aliveGuids.add(snapshot.guid);
 
             const prev = this.mapSyncedBuildings.get(snapshot.guid);
-            
+
             // Отправляем, если здания вообще не было на карте, ИЛИ если у него изменились важные данные
             if (!prev || prev.x !== snapshot.x || prev.y !== snapshot.y || prev.visibility !== snapshot.visibility) {
                 entities.push(snapshot);
@@ -296,7 +294,7 @@ export class Army {
         return proxy;
     }
 
-     static generateDefensiveLayout(map: TMap, common: Common): TBuildingInput[] {
+    static generateDefensiveLayout(map: TMap, common: Common): TBuildingInput[] {
         const mapRows = map.length;
         const mapCols = map[0]?.length ?? 0;
         if (mapRows === 0 || mapCols === 0) return [];
@@ -314,43 +312,7 @@ export class Army {
         const zoneX1 = mapCols - 1;  // правая граница (включительно)
         const zoneY1 = mapRows - 1;  // нижняя граница зоны (включительно)
 
-        // Стена взрывоморов и пять споровых башен в правом нижнем углу.
-        const placeWallRow = (y: number): void => {
-            if (y < zoneY0 || y > zoneY1) return;
-            for (let x = zoneX0; x <= zoneX1; x++) {
-                if (isFree(y, x)) {
-                    result.push({
-                        guid: common.guid(),
-                        type: 'vzryvomor',
-                        x,
-                        y,
-                    });
-                }
-            }
-        };
-
-        const placeWallColumn = (x: number): void => {
-            if (x < zoneX0 || x > zoneX1) return;
-            for (let y = zoneY0; y <= zoneY1; y++) {
-                if (isFree(y, x)) {
-                    result.push({
-                        guid: common.guid(),
-                        type: 'vzryvomor',
-                        x,
-                        y,
-                    });
-                }
-            }
-        };
-
-        const towerPositions = [
-            { x: zoneX0 + 1, y: zoneY0 + 1 }, // угол
-            { x: zoneX0 + 7, y: zoneY0 + 1 }, // сверху
-            { x: zoneX0 + 13, y: zoneY0 + 1 }, // сверху
-            { x: zoneX0 + 1, y: zoneY0 + 7 }, // справа
-            { x: zoneX0 + 1, y: zoneY0 + 13 }, // справа
-        ];
-
+        // Вспомогательная функция: разместить башню 2×2 с левым верхним тайлом (topY, leftX)
         const tryPlaceTower = (topY: number, leftX: number): void => {
             for (let dy = 0; dy <= 1; dy++) {
                 for (let dx = 0; dx <= 1; dx++) {
@@ -365,10 +327,35 @@ export class Army {
             });
         };
 
-        placeWallRow(zoneY0);
-        placeWallColumn(zoneX0);
-        for (const pos of towerPositions) {
-            tryPlaceTower(pos.y, pos.x);
+        // Три башни: угловая (пересечение стен), правая верхняя, левая нижняя
+        tryPlaceTower(zoneY0 + 1, zoneX0 + 1); // угол стен
+        tryPlaceTower(zoneY0 + 1, zoneX1 - 1); // правый верхний
+        tryPlaceTower(zoneY1 - 1, zoneX0 + 1); // левый нижний
+        tryPlaceTower(zoneY0 + 7, zoneX1 - 13); // правый верхний
+        tryPlaceTower(zoneY1 - 13, zoneX0 + 7); // левый нижний
+
+        // Левая стена: x=zoneX0, вся высота зоны
+        for (let y = zoneY0; y <= zoneY1; y++) {
+            if (isFree(y, zoneX0)) {
+                result.push({
+                    guid: common.guid(),
+                    type: 'vzryvomor',
+                    x: zoneX0,
+                    y,
+                });
+            }
+        }
+
+        // Верхняя стена: y=zoneY0, вся ширина зоны кроме x=zoneX0 (уже занят левой стеной)
+        for (let x = zoneX0 + 1; x <= zoneX1; x++) {
+            if (isFree(zoneY0, x)) {
+                result.push({
+                    guid: common.guid(),
+                    type: 'vzryvomor',
+                    x,
+                    y: zoneY0,
+                });
+            }
         }
 
         return result;
@@ -439,10 +426,8 @@ export class Army {
 
         for (const unit of this.units) {
             if (unit.isAlive) {
-                if (unit.type === 'eblekar') {
+                if (unit.type === 'eblekar' || unit.type === 'pizdoglyad') {
                     (unit as Eblekar).update(this.calculateSharedVisibility(), this.map, deltaTime, aliveAllies);
-                } else if (unit.type === 'pizdoglyad') {
-                    (unit as any).update(this.calculateSharedVisibility(), this.map, deltaTime, aliveAllies, this.economyBuildings, this.economyUnits);
                 } else {
                     unit.update(this.calculateSharedVisibility(), this.map, deltaTime);
                 }
@@ -511,7 +496,7 @@ export class Army {
         } else if (type === 'eblekar') {
             this.units.push(new Eblekar({ guid, type, x, y, speed: 1, attackRange: 0, projectiles: this.projectiles }));
         } else if (type === 'pizdoglyad') {
-                    this.units.push(new Pizdoglyad({ guid, type, x, y, speed: 7, attackRange: 0 }, this.pizdoglyadCounter++));
+            this.units.push(new Pizdoglyad({ guid, type, x, y, speed: 7, attackRange: 0 }));
         }
 
         return { guid };
