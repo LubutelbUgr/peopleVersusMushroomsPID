@@ -542,6 +542,56 @@ export function drawBuildings(
   drawVzryvomorExplosions(ctx, cellW, cellH, now);
 }
 
+/**
+ * Рисует тонкую стрелку от юнита к его цели
+ */
+function drawTargetArrow(
+  ctx: CanvasRenderingContext2D,
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+  cellW: number,
+  cellH: number,
+  color: string = 'rgba(200, 200, 200, 0.6)'
+): void {
+  const x1 = fromX * cellW + cellW / 2;
+  const y1 = fromY * cellH + cellH / 2;
+  const x2 = toX * cellW + cellW / 2;
+  const y2 = toY * cellH + cellH / 2;
+
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+
+  if (dist < 1) return; // Стрелка слишком короткая
+
+  // Направление
+  const dirX = dx / dist;
+  const dirY = dy / dist;
+
+  // Линия
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Стрелочка в конце
+  const arrowSize = 6;
+  const perp1X = -dirY * arrowSize;
+  const perp1Y = dirX * arrowSize;
+
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - dirX * arrowSize + perp1X * 0.5, y2 - dirY * arrowSize + perp1Y * 0.5);
+  ctx.lineTo(x2 - dirX * arrowSize - perp1X * 0.5, y2 - dirY * arrowSize - perp1Y * 0.5);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+}
+
 export function drawUnits(
   ctx: CanvasRenderingContext2D,
   units: Unit[],
@@ -587,6 +637,12 @@ export function drawUnits(
     ctx.fillRect(barX, barY, barWidth, barHeight);
     ctx.fillStyle = '#4caf50';
     ctx.fillRect(barX, barY, barWidth * hpPercent, barHeight);
+
+    // Рисуем стрелку к цели, если она есть
+    if (unit.targetX !== undefined && unit.targetY !== undefined) {
+      const arrowColor = unit.type === 'sporomet' ? 'rgba(76, 175, 80, 0.4)' : 'rgba(224, 64, 251, 0.4)';
+      drawTargetArrow(ctx, unit.x, unit.y, unit.targetX, unit.targetY, cellW, cellH, arrowColor);
+    }
   });
 }
 
@@ -667,6 +723,11 @@ export function drawEnemyUnits(
     ctx.fillRect(barX, barY, barWidth, barHeight);
     ctx.fillStyle = '#4caf50';
     ctx.fillRect(barX, barY, barWidth * hpPercent, barHeight);
+
+    // Рисуем стрелку к цели для врагов, если она есть
+    if (unit.targetX !== undefined && unit.targetY !== undefined) {
+      drawTargetArrow(ctx, unit.x, unit.y, unit.targetX, unit.targetY, cellW, cellH, 'rgba(200, 100, 100, 0.4)');
+    }
   });
 }
 
