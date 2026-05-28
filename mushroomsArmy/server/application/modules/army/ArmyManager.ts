@@ -33,7 +33,7 @@ type TVisibilityResponse = {
 type TReliefResponse = TMap;
 
 const ALLIED_ECONOMY_UNIT_TYPES = new Set(['larva', 'geodezist']);
-const PEOPLE_ECONOMY_BUILDING_TYPES = new Set(['barracks', 'driller', 'mine', 'pipe', 'smallGenerator']);
+const PEOPLE_ECONOMY_BUILDING_TYPES = new Set(['barracks', 'driller', 'mine', 'pipe', 'small_generator']);
 // Map хранит здания без hp — нормализуем дефолтами на стороне грибов,
 // чтобы прокси-цель не убивалась одной атакой.
 const PEOPLE_ECONOMY_DEFAULT_HP: Record<string, number> = {
@@ -41,7 +41,7 @@ const PEOPLE_ECONOMY_DEFAULT_HP: Record<string, number> = {
     driller: 100,
     mine: 100,
     pipe: 100,
-    smallGenerator: 100,
+    small_generator: 100,
 };
 
 function normalizeMapUnitHp(unit: TVisibleEntity): TVisibleEntity {
@@ -74,17 +74,33 @@ export function resolveDamageRoute(
     amount: number,
     guids: TArmyGuids,
 ): DamageRoute | null {
-    if (PEOPLE_ECONOMY_BUILDING_TYPES.has(targetType)) {
+    // 1. Приводим тип к нижнему регистру, чтобы 'LARGE_REACTOR' стал 'large_reactor'
+    const normalizedType = String(targetType || '').toLowerCase();
+
+    // 2. Ветка ЭКОНОМИКИ ЛЮДЕЙ
+    if (PEOPLE_ECONOMY_BUILDING_TYPES.has(normalizedType)) {
         if (!guids.peopleEconomyGuid) return null;
+        
         return {
             url: `${GLOBAL_CONFIG.PEOPLE_ECONOMY.URL}${GLOBAL_CONFIG.URLS.DAMAGE}`,
-            body: { guid: targetGuid, damage: amount, economyGuid: guids.peopleEconomyGuid },
+            body: { 
+                peopleEconomy: guids.peopleEconomyGuid, // Исправили ключ
+                entityGuid: targetGuid,                 // Исправили ключ
+                damage: amount 
+            },
         };
     }
+
+    // 3. Ветка АРМИИ ЛЮДЕЙ (Fallback)
     if (!guids.peopleArmyGuid) return null;
+    
     return {
         url: `${GLOBAL_CONFIG.PEOPLE_ARMY.URL}${GLOBAL_CONFIG.URLS.TAKE_DAMAGE_PEOPLE_ARMY}`,
-        body: { userGuid: guids.peopleArmyGuid, unitGuid: targetGuid, damage: amount },
+        body: {
+            userGuid: guids.peopleArmyGuid,
+            unitGuid: targetGuid,
+            damage: amount,
+        },
     };
 }
 

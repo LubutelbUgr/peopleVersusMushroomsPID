@@ -49,34 +49,29 @@ describe('Army.updateEnemyEntities — кэш recentlyKilledGuids', () => {
         expect(aliveSameGuid).toBeUndefined();
     });
 
-    it('по истечении TTL guid снимается с защиты (мок Date.now)', () => {
-        const realNow = Date.now;
-        let fakeNow = 1_000_000;
-        Date.now = () => fakeNow;
+    it('убитое здание остаётся скрытым даже если карта продолжает возвращать его guid', () => {
+        const building: TBuildingInput = {
+            guid: 'b-pipe-1',
+            type: 'pipe',
+            x: 5,
+            y: 5,
+            hp: 20,
+        };
 
-        try {
-            const building: TBuildingInput = {
-                guid: 'b-pipe-1',
-                type: 'pipe',
-                x: 5,
-                y: 5,
-                hp: 20,
-            };
+        army.updateEnemyEntities([building]);
+        const proxy = army.enemyUnits.find(u => u.guid === 'b-pipe-1');
+        expect(proxy).toBeDefined();
 
-            army.updateEnemyEntities([building]);
-            army.enemyUnits.find(u => u.guid === 'b-pipe-1')!.takeDamage(9999);
+        proxy!.takeDamage(9999);
 
-            // Защита активна
-            army.updateEnemyEntities([building]);
-            expect(army.enemyUnits.find(u => u.guid === 'b-pipe-1')).toBeUndefined();
+        // Стандартный ghost from map — объект продолжает появляться в видимости.
+        army.updateEnemyEntities([building]);
+        expect(army.enemyUnits.find(u => u.guid === 'b-pipe-1')).toBeUndefined();
 
-            // Прокручиваем время за пределы TTL (5000ms по умолчанию)
-            fakeNow += 6_000;
-            army.updateEnemyEntities([building]);
-            expect(army.enemyUnits.find(u => u.guid === 'b-pipe-1')).toBeDefined();
-        } finally {
-            Date.now = realNow;
-        }
+        // И даже через несколько обновлений он не воскресает.
+        army.updateEnemyEntities([building]);
+        army.updateEnemyEntities([building]);
+        expect(army.enemyUnits.find(u => u.guid === 'b-pipe-1')).toBeUndefined();
     });
 
     it('callback takeDamage получает type и role цели в объекте', () => {

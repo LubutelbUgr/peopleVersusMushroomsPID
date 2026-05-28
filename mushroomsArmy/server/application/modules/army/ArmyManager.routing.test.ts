@@ -18,9 +18,9 @@ describe('resolveDamageRoute', () => {
                 expect(route).not.toBeNull();
                 expect(route!.url).toBe(`${GLOBAL_CONFIG.PEOPLE_ECONOMY.URL}${GLOBAL_CONFIG.URLS.DAMAGE}`);
                 expect(route!.body).toEqual({
-                    guid: 'target-guid',
+                    peopleEconomy: 'pe-guid-1',
+                    entityGuid: 'target-guid',  // Было guid
                     damage: 25,
-                    economyGuid: 'pe-guid-1',
                 });
             });
         }

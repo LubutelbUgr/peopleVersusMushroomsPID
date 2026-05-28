@@ -103,9 +103,8 @@ export class Army {
     public economyBuildings: TBuildingInput[] = [];
     public economyUnits: TBuildingInput[] = [];
     // Видимость map может возвращать только что убитое здание (пока tombstone не дошёл).
-    // Игнорируем такие guid'ы N мс, чтобы прокси не воскресал.
-    public recentlyKilledGuids: Map<string, number> = new Map();
-    public readonly KILLED_GUID_TTL_MS = 5000;
+    // Игнорируем такие guid'ы, чтобы прокси не воскресал.
+    public recentlyKilledGuids: Set<string> = new Set();
     // public sentBuildingGuids: Set<string> = new Set();
     /** Последнее состояние юнитов, отданное карте (протокол UPDATE_UNITS). */
     public projectiles: TProjectile[] = [];
@@ -290,7 +289,7 @@ export class Army {
             baseTakeDamage(amount);
             this.syncBuildingDamage(proxy.guid, proxy.hp);
             if (proxy.hp <= 0) {
-                this.recentlyKilledGuids.set(proxy.guid, Date.now());
+                this.recentlyKilledGuids.add(proxy.guid);
             }
             // Определяем targetKind по типу, если map не передал его
             const inferredTargetKind = entity.targetKind ?? (PEOPLE_ARMY_UNIT_TYPES.has(entity.type) ? 'unit' : 'building');
@@ -378,10 +377,11 @@ export class Army {
 
     /** Обновляет цели из видимости: существующим proxy меняет координаты, и создаёт новых по guid. */
     public updateEnemyEntities(entities: TBuildingInput[]): void {
-        // Чистим протухшие записи в кэше убитых
-        const now = Date.now();
-        for (const [guid, killedAt] of this.recentlyKilledGuids.entries()) {
-            if (now - killedAt > this.KILLED_GUID_TTL_MS) {
+        const visibleGuids = new Set(entities.map(e => e.guid));
+
+        // Если map перестал отдавать guid убитого здания — можно забыть о нём.
+        for (const guid of Array.from(this.recentlyKilledGuids)) {
+            if (!visibleGuids.has(guid)) {
                 this.recentlyKilledGuids.delete(guid);
             }
         }
