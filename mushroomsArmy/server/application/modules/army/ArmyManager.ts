@@ -1,6 +1,6 @@
 import BaseManager, { TManagerOptions } from '../BaseManager';
 import CONFIG from '../../../config';
-import { Army, TMap, TArmyState, TBuildingInput, TDamageTarget } from '../../army/Army';
+import { Army, TMap, TArmyState, TBuildingInput, TDamageTarget, PEOPLE_ARMY_UNIT_TYPES, PEOPLE_ARMY_DEFAULT_HP } from '../../army/Army';
 import { ArmyStateManager, ArmyMode, EconomyRequest, EconomyResponse } from '../../army/ArmyStateManager';
 import { Socket } from 'socket.io';
 
@@ -33,14 +33,7 @@ type TVisibilityResponse = {
 type TReliefResponse = TMap;
 
 const ALLIED_ECONOMY_UNIT_TYPES = new Set(['larva', 'geodezist']);
-const PEOPLE_ARMY_UNIT_TYPES = new Set(['soldier', 'bmp', 'sniper', 'partizan']);
 const PEOPLE_ECONOMY_BUILDING_TYPES = new Set(['barracks', 'driller', 'mine', 'pipe', 'smallGenerator']);
-const PEOPLE_ARMY_DEFAULT_HP: Record<string, number> = {
-    soldier: 20,
-    bmp: 130,
-    sniper: 18,
-    partizan: 72,
-};
 // Map хранит здания без hp — нормализуем дефолтами на стороне грибов,
 // чтобы прокси-цель не убивалась одной атакой.
 const PEOPLE_ECONOMY_DEFAULT_HP: Record<string, number> = {
@@ -363,11 +356,31 @@ class ArmyManager extends BaseManager {
 
     private async damageEnemy(armyGuid: string, target: TDamageTarget): Promise<void> {
         const guids = this.armyGuids[armyGuid];
-        if (!guids) return;
+        if (!guids) {
+            console.log('[ArmyManager] damageEnemy: no guids for army', armyGuid);
+            return;
+        }
 
         const route = resolveDamageRoute(target.type ?? '', target.unitGuid, target.amount, guids);
-        if (!route) return;
+        if (!route) {
+            console.log('[ArmyManager] damageEnemy: no route for target', {
+                armyGuid,
+                targetGuid: target.unitGuid,
+                targetType: target.type,
+                amount: target.amount,
+                guids
+            });
+            return;
+        }
 
+        console.log('[ArmyManager] damageEnemy: sending damage', {
+            armyGuid,
+            targetGuid: target.unitGuid,
+            targetType: target.type,
+            targetKind: target.targetKind,
+            amount: target.amount,
+            url: route.url
+        });
         await this.send(route.url, route.body);
     }
 

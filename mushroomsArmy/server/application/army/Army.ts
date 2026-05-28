@@ -11,6 +11,15 @@ import type { TFormationState } from './ArmyStateManager';
 
 export type TMap = (number | null)[][];
 
+export const PEOPLE_ARMY_UNIT_TYPES = new Set(['soldier', 'bmp', 'sniper', 'partizan']);
+
+export const PEOPLE_ARMY_DEFAULT_HP: Record<string, number> = {
+    soldier: 20,
+    bmp: 100,
+    sniper: 20,
+    partizan: 30,
+};
+
 export type TBuildingInput = {
     guid: string;
     type: string;
@@ -282,10 +291,12 @@ export class Army {
             if (proxy.hp <= 0) {
                 this.recentlyKilledGuids.set(proxy.guid, Date.now());
             }
+            // Определяем targetKind по типу, если map не передал его
+            const inferredTargetKind = entity.targetKind ?? (PEOPLE_ARMY_UNIT_TYPES.has(entity.type) ? 'unit' : 'building');
             this.callbacks.takeDamage?.({
                 unitGuid: proxy.guid,
                 amount,
-                targetKind: entity.targetKind ?? 'building',
+                targetKind: inferredTargetKind,
                 type: entity.type,
                 role: entity.role,
             });
