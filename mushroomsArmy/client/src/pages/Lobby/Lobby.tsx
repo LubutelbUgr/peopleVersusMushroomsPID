@@ -358,7 +358,7 @@ const Lobby: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
 
 
 
-        <div className="lobby" style={lobbyPageStyle}>
+        <div className="lobbyPresentation" style={lobbyPageStyle}>
 
             <section className="lobby__screen lobby__screen--main">
                 <div className="lobby__container">
