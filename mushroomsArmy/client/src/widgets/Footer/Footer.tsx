@@ -124,18 +124,6 @@ const Footer: React.FC = () => {
       </div>
 
       <div className="game-footer-main-panel">
-        {/* Ресурсы */}
-        {/* <div className="game-economy-box">
-          <span className="game-section-title">•РЕСУРСы•</span>
-          <div className="game-economy-list">
-            {ECONOMY_RESOURCES.map((res) => (
-              <div className="game-info-item" key={res.id}>
-                <span className="game-info-label">{res.label}:</span>
-                <span className="game-info-value">{res.value}</span>
-              </div>
-            ))}
-          </div>
-        </div> */}
 
         {/* Армия */}
         <div className="game-army-box">
