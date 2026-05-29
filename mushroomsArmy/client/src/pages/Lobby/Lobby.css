@@ -4,6 +4,7 @@
     box-sizing: border-box;
 }
 @import url('https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Hanjaek&display=swap');
 
 .lobby {
     position: fixed;
@@ -28,6 +29,7 @@
     );
 
     overflow-y: auto;
+    font-family: 'Pixelify Sans', sans-serif;
 }
 
 .lobbyPresentation {
@@ -71,7 +73,7 @@
 
 
 .lobby button {
-    font-family: var(--font-main);
+    font-family: 'Pixelify Sans', sans-serif;
 }
 .lobby::before {
     content: '';
@@ -124,12 +126,14 @@
     font-size: var(--title-font-size);
     color: rgb(217, 144, 54);
     -webkit-text-stroke: 0.8px rgb(113, 22, 22);
+    font-family: 'Pixelify Sans', sans-serif;
 }
 
 .lobby__subtitle {
     margin: 0 0 calc(16px * var(--lobby-scale));
     color: #6b7280;
     font-size: var(--font-small);
+    font-family: 'Pixelify Sans', sans-serif;
 }
 
 .lobby__list {
@@ -158,6 +162,7 @@
     font-size: var(--font-base);
     color: #9ea4af;
     -webkit-text-stroke: 0.5px rgb(0, 16, 17);
+    font-family: 'Pixelify Sans', sans-serif;
 }
 
 .lobby__slots {
@@ -165,6 +170,11 @@
     -webkit-text-stroke: 0.5px rgb(0, 16, 17);
     font-weight: 600;
     font-size: var(--font-small);
+    font-family: 'Pixelify Sans', sans-serif;
+}
+
+.lobby__digit {
+    font-family: 'Hanjaek', sans-serif;
 }
 
 .lobby__cardActions {
@@ -176,11 +186,11 @@
 .lobby__roleLabel {
     flex: 1;
     font-size: var(--font-small);
-
     font-weight: 600;
     color: #9ea4af;
     -webkit-text-stroke: 0.5px rgb(0, 16, 17);
     padding: 0 calc(4px * var(--lobby-scale));
+    font-family: 'Pixelify Sans', sans-serif;
 }
 
 .lobby__errorToast {
@@ -196,6 +206,7 @@
     font-weight: 500;
     text-align: center;
     z-index: 100;
+    font-family: 'Pixelify Sans', sans-serif;
 }
 
 .lobby__select {
@@ -206,6 +217,7 @@
     padding: 0 calc(10px * var(--lobby-scale));
     background: #fff;
     font-size: var(--font-small);
+    font-family: 'Pixelify Sans', sans-serif;
 }
 
 .lobby__primaryButton,
@@ -219,6 +231,7 @@
     cursor: pointer;
     transition: background-color 0.2s ease;
     font-size: var(--font-small);
+    font-family: 'Pixelify Sans', sans-serif;
 }
 
 .lobby__primaryButton:disabled,
@@ -233,6 +246,7 @@
     text-align: center;
     font-size: 20px;
     color: #4b4742;
+    font-family: 'Pixelify Sans', sans-serif;
 }
 
 .lobby__primaryButton {
@@ -281,6 +295,7 @@
     color: rgb(0, 16, 17);
     text-align: center;
     font-size: var(--font-base);
+    font-family: 'Pixelify Sans', sans-serif;
 }
 
 .lobby__rolesTable {
@@ -307,6 +322,7 @@
     text-align: left;
     vertical-align: middle;
     font-size: var(--font-small);
+    font-family: 'Pixelify Sans', sans-serif;
 }
 
 .lobby__rolesTable th {
@@ -329,6 +345,7 @@
     padding: calc(2px * var(--lobby-scale)) calc(10px * var(--lobby-scale));
     font-size: var(--font-small);
     font-weight: 600;
+    font-family: 'Pixelify Sans', sans-serif;
 }
 
 .lobby__readyBadge--yes {
@@ -379,6 +396,7 @@
     border-radius: 8px;
     padding: 0 calc(10px * var(--lobby-scale));
     margin-bottom: calc(10px * var(--lobby-scale));
+    font-family: 'Pixelify Sans', sans-serif;
 }
 
 .lobby__modalActions {
