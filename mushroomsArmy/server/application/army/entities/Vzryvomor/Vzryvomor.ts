@@ -35,6 +35,7 @@ type VzryvomorState = {
     isExploding: boolean;
     respawn: Respawn;
     elapsedFromLastDecision: number;
+    visibility?: number;
 };
 
 export interface IBuilding<T> {
@@ -62,7 +63,7 @@ export class Vzryvomor implements IBuilding<VzryvomorState> {
     public respawn: Respawn = { inProgress: false, respawnIn: 0};
     private willRespawn: boolean = true;
     private elapsedFromLastDecision: number = 0;
-    private DECISION_INTERVAL = 0.5; // seconds
+    private DECISION_INTERVAL = 0.2; // seconds - уменьшена для лучшей отзывчивости
 
     // Регенерация HP
     private readonly maxHp: number = 70;
@@ -70,6 +71,7 @@ export class Vzryvomor implements IBuilding<VzryvomorState> {
     private readonly healRate: number = 3; // HP в секунду
     private lastDamageTime: number = 0; // время последнего получения урона
     private healAccumulator: number = 0; // накопленное время для регенерации
+    public visibility: number = 7; // 7 клеток видимости
 
     constructor({guid, x, y, attackRange}: TVzryvomorOptions) {
         this.guid = guid;
@@ -123,7 +125,23 @@ export class Vzryvomor implements IBuilding<VzryvomorState> {
     }
 
     private makeDecision(enemies: Unit[]): void {
-        const nearbyEnemies = enemies.filter(e => e.isAlive && distance({ x: e.x, y: e.y }, { x: this.x, y: this.y }) < this.attackRange);
+        // Проверяем что враги это массив
+        if (!Array.isArray(enemies) || enemies.length === 0) {
+            return;
+        }
+
+        // Взрывомор атакует врагов в пределах своей дальности атаки
+        const nearbyEnemies = enemies.filter(e => {
+            // Проверяем что враг это правильный объект и живой
+            if (!e || !e.isAlive || e.hp <= 0) return false;
+            
+            // Проверяем что враг имеет координаты
+            if (typeof e.x !== 'number' || typeof e.y !== 'number') return false;
+            
+            // Проверяем дальность
+            const dist = distance({ x: e.x, y: e.y }, { x: this.x, y: this.y });
+            return dist <= this.attackRange;
+        });
 
         if (nearbyEnemies.length === 0) return;
 
@@ -143,7 +161,7 @@ export class Vzryvomor implements IBuilding<VzryvomorState> {
     private blow() {
         this.willRespawn = true;
         this.isAlive = false;
-        this.respawn = { inProgress: true, respawnIn: 5};
+        this.respawn = { inProgress: true, respawnIn: 1};
     }
 
     takeDamage(amount: number): void {
@@ -182,6 +200,7 @@ export class Vzryvomor implements IBuilding<VzryvomorState> {
             isAlive: this.isAlive,
             isExploding: this.respawn.inProgress,
             respawn: this.respawn,
+            visibility: this.visibility,
         };
     }
 }

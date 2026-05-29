@@ -6,7 +6,7 @@ import Sporomet from "./entities/Sporomet/Sporomet";
 import SporovayaBashnya from "./entities/SporovayaBashnya/SporovayaBashnya";
 import Unit, { TProjectile, TUnitState } from "./entities/Units";
 import { IBuilding, Vzryvomor } from "./entities/Vzryvomor/Vzryvomor";
-import type { TFormationState } from './ArmyStateManager';
+import type { TFormationState, ArmyMode } from './ArmyStateManager';
 
 
 export type TMap = (number | null)[][];
@@ -18,6 +18,16 @@ export const PEOPLE_ARMY_DEFAULT_HP: Record<string, number> = {
     bmp: 100,
     sniper: 20,
     partizan: 30,
+};
+
+export const PEOPLE_ECONOMY_BUILDING_TYPES = new Set(['barracks', 'driller', 'mine', 'pipe', 'smallGenerator']);
+
+export const PEOPLE_ECONOMY_DEFAULT_HP: Record<string, number> = {
+    barracks: 200,
+    driller: 100,
+    mine: 100,
+    pipe: 100,
+    smallGenerator: 100,
 };
 
 export type TBuildingInput = {
@@ -106,6 +116,12 @@ export class Army {
     // Игнорируем такие guid'ы N мс, чтобы прокси не воскресал.
     public recentlyKilledGuids: Map<string, number> = new Map();
     public readonly KILLED_GUID_TTL_MS = 5000;
+    // Отслеживание количества атакующих на каждого врага (ключ - guid врага)
+    private attackersCount: Map<string, number> = new Map();
+    // Максимальное количество атакующих на одного врага
+    private readonly MAX_ATTACKERS_PER_TARGET = 3;
+    // Текущий режим армии
+    public currentMode: ArmyMode = 'defense';
     // public sentBuildingGuids: Set<string> = new Set();
     /** Последнее состояние юнитов, отданное карте (протокол UPDATE_UNITS). */
     public projectiles: TProjectile[] = [];
@@ -274,12 +290,19 @@ export class Army {
 
     /** Создаёт proxy-юнита для здания и пробрасывает урон обратно в this.buildings. */
     private createEnemyProxy(entity: TBuildingInput): Unit {
+        // Используем дефолтное HP, если карта не передает актуальное значение
+        const defaultHp = PEOPLE_ARMY_UNIT_TYPES.has(entity.type)
+            ? (PEOPLE_ARMY_DEFAULT_HP[entity.type] ?? 10)
+            : PEOPLE_ECONOMY_BUILDING_TYPES.has(entity.type)
+                ? (PEOPLE_ECONOMY_DEFAULT_HP[entity.type] ?? 50)
+                : (entity.hp ?? 1);
+        
         const proxy = new Unit({
             guid: entity.guid,
             type: entity.type,
             x: entity.x,
             y: entity.y,
-            hp: entity.hp ?? 1,
+            hp: entity.hp ?? defaultHp,
             speed: 0,
             attackRange: 0,
         });
@@ -415,6 +438,7 @@ export class Army {
         const visibleEnemyGuids = new Set<string>();
         const aliveUnits = this.units.filter(u => u.isAlive);
 
+        // Проверяем видимость юнитов
         for (const unit of aliveUnits) {
             for (const enemy of this.enemyUnits) {
                 if (!enemy.isAlive) continue;
@@ -430,31 +454,80 @@ export class Army {
             }
         }
 
+        // Проверяем видимость зданий
+        for (const building of this.buildings) {
+            const buildingState = building.getState();
+            const buildingVisibility = buildingState.visibility ?? 1;
+            
+            for (const enemy of this.enemyUnits) {
+                if (!enemy.isAlive) continue;
+                if (visibleEnemyGuids.has(enemy.guid)) continue;
+
+                const dx = enemy.x - building.x;
+                const dy = enemy.y - building.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                // Здания видят врагов в пределах своей видимости
+                if (dist <= buildingVisibility) {
+                    visibleEnemyGuids.add(enemy.guid);
+                }
+            }
+        }
+
         const visibleEnemies = this.enemyUnits.filter(enemy => visibleEnemyGuids.has(enemy.guid));
 
         return visibleEnemies;
+    }
+
+    /** Сбрасывает счетчики атакующих перед каждым тиком */
+    private resetAttackersCount(): void {
+        this.attackersCount.clear();
+    }
+
+    /** Возвращает количество атакующих на указанного врага */
+    public getAttackersCount(enemyGuid: string): number {
+        return this.attackersCount.get(enemyGuid) ?? 0;
+    }
+
+    /** Регистрирует атакующего на врага */
+    public registerAttacker(enemyGuid: string): void {
+        const current = this.attackersCount.get(enemyGuid) ?? 0;
+        this.attackersCount.set(enemyGuid, current + 1);
+    }
+
+    /** Проверяет, может ли юнит атаковать данного врага (с учетом ограничения) */
+    public canAttack(enemyGuid: string): boolean {
+        return this.getAttackersCount(enemyGuid) < this.MAX_ATTACKERS_PER_TARGET;
+    }
+
+    /** Устанавливает режим армии */
+    public setMode(mode: ArmyMode): void {
+        this.currentMode = mode;
     }
 
     private update(): void {
         const deltaTime = 0.2;
         this.projectiles.length = 0;
 
+        // Сбрасываем счетчики атакующих перед каждым тиком
+        this.resetAttackersCount();
+
         const aliveAllies = this.units.filter(u => u.isAlive);
 
         for (const unit of this.units) {
             if (unit.isAlive) {
                 if (unit.type === 'eblekar' || unit.type === 'pizdoglyad') {
-                    (unit as Eblekar).update(this.calculateSharedVisibility(), this.map, deltaTime, aliveAllies);
+                    (unit as Eblekar).update(this.calculateSharedVisibility(), this.map, deltaTime, aliveAllies, this);
                 } else {
-                    unit.update(this.calculateSharedVisibility(), this.map, deltaTime);
+                    unit.update(this.calculateSharedVisibility(), this.map, deltaTime, undefined, this);
                 }
             }
         }
 
         // Тикаем все здания — включая мёртвые взрывоморы, ожидающие respawn
+        // Передаем ВСЕ врагов, пусть здания сами решают, кого видеть
         for (const building of this.buildings) {
-            const sharedVisibility = this.calculateSharedVisibility();
-            building.update(sharedVisibility, this.map, deltaTime);
+            building.update(this.enemyUnits, this.map, deltaTime);
         }
 
         // Удаляем только те здания, что мертвы И не ждут respawn

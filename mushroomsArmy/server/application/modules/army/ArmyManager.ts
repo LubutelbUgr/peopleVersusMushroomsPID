@@ -309,12 +309,21 @@ class ArmyManager extends BaseManager {
         const isAlliedEconomyBuilding = (b: TVisibleEntity & { role?: string }) =>
             b.role === 'mushroomsEconomy' && ALLIED_ECONOMY_BUILDING_TYPES.has(b.type);
 
+        // Также фильтруем юниты экономики по role, чтобы не атаковать союзные юниты
+        const isAlliedEconomyUnit = (u: TVisibleEntity & { role?: string }) =>
+            u.role === 'mushroomsEconomy' && ALLIED_ECONOMY_UNIT_TYPES.has(u.type);
+
+        // Дополнительная фильтрация: ВСЕ сущности с role === 'mushroomsEconomy' считаются союзными
+        // независимо от типа, чтобы армия грибов не атаковала экономику грибов
+        const isMushroomsEconomyEntity = (e: TVisibleEntity & { role?: string }) =>
+            e.role === 'mushroomsEconomy';
+
         army.economyBuildings = visibleEnemyBuildings.filter(isAlliedEconomyBuilding);
-        army.economyUnits     = visibleEnemyUnits.filter(u => ALLIED_ECONOMY_UNIT_TYPES.has(u.type));
+        army.economyUnits     = visibleEnemyUnits.filter(u => isAlliedEconomyUnit(u));
 
         const visibleEnemies: TVisibleEntity[] = [
-            ...visibleEnemyUnits.filter(e => !ALLIED_ECONOMY_UNIT_TYPES.has(e.type)),
-            ...visibleEnemyBuildings.filter(e => !isAlliedEconomyBuilding(e)),
+            ...visibleEnemyUnits.filter(e => !isAlliedEconomyUnit(e) && !isMushroomsEconomyEntity(e)),
+            ...visibleEnemyBuildings.filter(e => !isAlliedEconomyBuilding(e) && !isMushroomsEconomyEntity(e)),
         ];
 
         const enemyEntities: TBuildingInput[] = visibleEnemies.map(entity => {
@@ -341,7 +350,7 @@ class ArmyManager extends BaseManager {
         // Также скрываем недавно убитые (recentlyKilledGuids) пока peopleEconomy
         // не уберёт их с карты через tombstone.
         const proxyByGuid = new Map(army.enemyUnits.map(u => [u.guid, u] as const));
-        for (const raw of visibleEnemyBuildings.filter(e => !isAlliedEconomyBuilding(e))) {
+        for (const raw of visibleEnemyBuildings.filter(e => !isAlliedEconomyBuilding(e) && !isMushroomsEconomyEntity(e))) {
             if (army.recentlyKilledGuids.has(raw.guid)) continue;
             const proxy = proxyByGuid.get(raw.guid);
             const hp = proxy
@@ -351,8 +360,12 @@ class ArmyManager extends BaseManager {
         }
 
         const clientEnemyUnits = visibleEnemyUnits
-            .filter((unit) => PEOPLE_ARMY_UNIT_TYPES.has(unit.type))
-            .map(normalizeMapUnitHp);
+            .filter((unit) => PEOPLE_ARMY_UNIT_TYPES.has(unit.type) && !isMushroomsEconomyEntity(unit))
+            .map(unit => {
+                const proxy = proxyByGuid.get(unit.guid);
+                const hp = proxy ? proxy.hp : (PEOPLE_ARMY_DEFAULT_HP[unit.type] ?? 1);
+                return { ...unit, hp };
+            });
 
         const fogMap = this.buildFogMap(updatedState, army.map);
         const stateManager = this.armyStateManagers[guid];
@@ -377,7 +390,22 @@ class ArmyManager extends BaseManager {
         const route = resolveDamageRoute(target.type ?? '', target.unitGuid, target.amount, guids);
         if (!route) return;
 
-        await this.send(route.url, route.body);
+        const response = await this.send<Record<string, unknown>, { guid: string; hp: number }>(route.url, route.body);
+        
+        // Обновляем HP в прокси-объекте, если peopleArmy вернул актуальное HP
+        if (response && response.hp !== undefined) {
+            const army = this.army[armyGuid];
+            if (army) {
+                const proxy = army.enemyUnits.find(u => u.guid === target.unitGuid);
+                if (proxy) {
+                    proxy.hp = response.hp;
+                    if (proxy.hp <= 0) {
+                        proxy.isAlive = false;
+                        army.recentlyKilledGuids.set(proxy.guid, Date.now());
+                    }
+                }
+            }
+        }
     }
 
     private destroyArmy(guid: string): void {

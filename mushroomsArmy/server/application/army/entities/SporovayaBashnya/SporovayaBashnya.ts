@@ -20,6 +20,7 @@ type TSporovayaBashnyaState = {
     sizeY: number;
     isAlive: boolean;
     isAttacking: boolean;
+    visibility?: number;
 };
 
 class SporovayaBashnya implements IBuilding<TSporovayaBashnyaState> {
@@ -47,6 +48,7 @@ class SporovayaBashnya implements IBuilding<TSporovayaBashnyaState> {
     private readonly healRate: number = 5; // HP в секунду
     private lastDamageTime: number = 0; // время последнего получения урона
     private healAccumulator: number = 0; // накопленное время для регенерации
+    public visibility: number = 20; // 20 клеток видимости
 
     constructor(options: TSporovayaBashnyaOptions) {
         this.guid = options.guid;
@@ -54,6 +56,8 @@ class SporovayaBashnya implements IBuilding<TSporovayaBashnyaState> {
         this.y = options.y;
         this.hp = options.hp ?? 200;
         this.projectiles = options.projectiles ?? [];
+        // Рандомизируем начальный таймер, чтобы башни не атаковали синхронно
+        this.attackTimer = -this.attackCooldown + Math.random() * this.attackCooldown;
     }
 
     public update(enemies: Unit[], map: TMap, deltaTime: number): void {
@@ -90,16 +94,24 @@ class SporovayaBashnya implements IBuilding<TSporovayaBashnyaState> {
 
         this.attackTimer = 0;
 
+        // Проверяем что враги это правильный массив
+        if (!Array.isArray(enemies) || enemies.length === 0) {
+            return;
+        }
+
         let nearestEnemy: Unit | null = null;
         let nearestDistance: number = Infinity;
 
+        // Башня атакует ближайшего врага в пределах дальности атаки
         for (const enemy of enemies) {
-            if (!enemy.isAlive) continue;
+            // Проверяем что враг это правильный живой объект
+            if (!enemy || !enemy.isAlive || enemy.hp <= 0) continue;
 
             const dx = enemy.x - this.x;
             const dy = enemy.y - this.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
 
+            // Враг должен быть в пределах дальности атаки
             if (distance <= this.attackRange && distance < nearestDistance) {
                 nearestEnemy = enemy;
                 nearestDistance = distance;
@@ -152,6 +164,7 @@ class SporovayaBashnya implements IBuilding<TSporovayaBashnyaState> {
             sizeY: this.sizeY,
             isAlive: this.isAlive,
             isAttacking: this.isAttacking,
+            visibility: this.visibility,
         };
     }
 }
