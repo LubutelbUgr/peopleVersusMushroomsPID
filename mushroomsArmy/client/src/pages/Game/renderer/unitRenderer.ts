@@ -1,5 +1,15 @@
 import { Unit, EnemyUnit, Projectile, EconomyUnit } from '../types';
-import { UNIT_SRCS, UNIT_FRAME_SRCS, PEOPLE_UNIT_SRCS, champignebExplImages, vzryvomorExplImages, VZRYVOMOR_FRAME_SRCS, SPOROVAYA_BASHNYA_SRCS, PEOPLE_ECONOMY_BUILDING_SRCS, economySpritesSrc } from './assets';
+import {
+  UNIT_SRCS, 
+  UNIT_FRAME_SRCS, 
+  PEOPLE_UNIT_SRCS, 
+  champignebExplImages, 
+  vzryvomorExplImages, 
+  VZRYVOMOR_FRAME_SRCS, 
+  SPOROVAYA_BASHNYA_SRCS, 
+  PEOPLE_ECONOMY_BUILDING_SRCS, 
+  economySpritesSrc 
+} from './assets';
 import { isImageDrawable, tryDrawImageScaled, getBuildingImage } from './buildingRenderer';
 import { getVzryvomorFrameKey } from './vzryvomorAnimation';
 import { Building, GameState } from '../types';
@@ -256,11 +266,33 @@ const prevChampignebHp = new Map<string, number>();
 
 function updateChampignebExplosions(units: Unit[], now: number): void {
   units.forEach(unit => {
-    if (unit.type !== 'champigneb') return;
-    const prevHp = prevChampignebHp.get(unit.guid) ?? unit.hp;
-    if (unit.hp <= 0 && prevHp > 0 && !champignebExplosions.has(unit.guid)) {
-      champignebExplosions.set(unit.guid, { x: unit.x, y: unit.y, startTime: now });
+    console.log('UNIT TYPE:', unit.type);
+
+    if (normUnitType(unit.type) !== 'champigneb') return;
+
+    const prevHp = prevChampignebHp.get(unit.guid);
+
+    console.log(
+      '[champigneb]',
+      unit.guid,
+      'hp=', unit.hp,
+      'prevHp=', prevHp
+    );
+
+    if (
+      unit.hp <= 0 &&
+      (prevHp === undefined || prevHp > 0) &&
+      !champignebExplosions.has(unit.guid)
+    ) {
+      console.log('EXPLOSION CREATED');
+
+      champignebExplosions.set(unit.guid, {
+        x: unit.x,
+        y: unit.y,
+        startTime: now
+      });
     }
+
     prevChampignebHp.set(unit.guid, unit.hp);
   });
 }
@@ -284,21 +316,31 @@ function drawChampignebExplosions(
     );
     const cx = entry.x * cellW + cellW / 2;
     const cy = entry.y * cellH + cellH / 2;
-    const size = 20 * Math.min(cellW, cellH);
+    const size = 15 * Math.min(cellW, cellH);
+
     const img = champignebExplImages[fi];
+
     if (isImageDrawable(img)) {
-      tryDrawImageScaled(ctx, img, cx - size / 2, cy - size / 2, size, size);
+      tryDrawImageScaled(
+        ctx,
+        img,
+        cx - size / 2,
+        cy - size / 2,
+        size,
+        size
+      );
     } else {
       const alpha = 1 - elapsed / CHAMPIGNEB_EXPL_DURATION;
+
       ctx.beginPath();
       ctx.arc(cx, cy, size / 2, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(255,152,0,${alpha * 0.85})`;
       ctx.fill();
-      ctx.strokeStyle = `rgba(255,80,0,${alpha})`;
-      ctx.lineWidth = 3;
-      ctx.stroke();
     }
   }
+
+  console.log('DRAW EXPLOSIONS', champignebExplosions.size);
+  
 }
 
 const VZRYVOMOR_EXPL_DURATION = 1000;
@@ -354,7 +396,7 @@ function drawVzryvomorExplosions(
     );
     const cx = entry.x * cellW + cellW / 2;
     const cy = entry.y * cellH + cellH / 2;
-    const size = 24 * Math.min(cellW, cellH);
+    const size = 4 * Math.min(cellW, cellH);
     const img = vzryvomorExplImages[fi];
     if (isImageDrawable(img)) {
       tryDrawImageScaled(ctx, img, cx - size / 2, cy - size / 2, size, size);
@@ -439,6 +481,9 @@ function preloadBuildingImages(): void {
   getBuildingImage('sporovaya_bashnya:destroyed', SPOROVAYA_BASHNYA_SRCS.destroyed);
   Object.entries(PEOPLE_ECONOMY_BUILDING_SRCS).forEach(([type, src]) => {
     getBuildingImage(`people_economy:${type}`, src);
+  });
+  champignebExplImages.forEach(img => {
+    img.decode?.().catch(() => {});
   });
 }
 
@@ -688,10 +733,12 @@ export function drawUnits(
 ): void {
   const now = Date.now();
   updateChampignebExplosions(units, now);
-  drawChampignebExplosions(ctx, cellW, cellH, now);
 
   units.forEach(unit => {
-    if (unit.hp <= 0) return;
+    if (unit.hp <= 0) {
+      unit.deadAt ??= Date.now();
+      return;
+    }
     
     // Получаем интерполированную позицию
     const interpolated = getInterpolatedUnitPosition(unit);
@@ -734,6 +781,9 @@ export function drawUnits(
       drawTargetArrow(ctx, interpolated.x, interpolated.y, unit.targetX, unit.targetY, cellW, cellH, arrowColor);
     }
   });
+
+  drawChampignebExplosions(ctx, cellW, cellH, now);
+
 }
 
 export function drawEnemyUnits(

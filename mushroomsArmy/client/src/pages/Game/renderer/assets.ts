@@ -47,12 +47,14 @@ import largeReactorSrc from '../../../assets/buildings/large_reactor/large_react
 import drillerSrc from '../../../assets/buildings/driller/driller1.png';
 import peopleMineSrc from '../../../assets/buildings/mine/mine1.png';
 
-import champignebExplFrame0 from '../../../assets/units/champigneb_explosion/frame_0.png';
-import champignebExplFrame1 from '../../../assets/units/champigneb_explosion/frame_1.png';
-import champignebExplFrame2 from '../../../assets/units/champigneb_explosion/frame_2.png';
-import champignebExplFrame3 from '../../../assets/units/champigneb_explosion/frame_3.png';
-import champignebExplFrame4 from '../../../assets/units/champigneb_explosion/frame_4.png';
+// импорт анимации для шампиньеба юнита
+import champignebExplFrame0 from '../../../assets/buildings/vzryvomor_explosion/frame_0.png';
+import champignebExplFrame1 from '../../../assets/buildings/vzryvomor_explosion/frame_1.png';
+import champignebExplFrame2 from '../../../assets/buildings/vzryvomor_explosion/frame_2.png';
+import champignebExplFrame3 from '../../../assets/buildings/vzryvomor_explosion/frame_3.png';
+import champignebExplFrame4 from '../../../assets/buildings/vzryvomor_explosion/frame_4.png';
 
+// импорты для анимации взрывомора ( здания)
 import vzryvomorExplFrame0 from '../../../assets/buildings/vzryvomor_explosion/frame_0.png';
 import vzryvomorExplFrame1 from '../../../assets/buildings/vzryvomor_explosion/frame_1.png';
 import vzryvomorExplFrame2 from '../../../assets/buildings/vzryvomor_explosion/frame_2.png';
@@ -124,7 +126,6 @@ export const UNIT_SRCS: Record<string, string> = {
 export const UNIT_FRAME_SRCS: Record<string, string[]> = {
   sporomet: [sporomet1Src, sporomet2Src, sporomet3Src],
   champigneb: [champigneb1Src, champigneb2Src],
-  // eblekar: [eblekar1Src, eblekar2Src, eblekar3Src, eblekar4Src, eblekar5Src, eblekar6Src],
   eblekar: [eblekar6Src, eblekar5Src, eblekar4Src, eblekar3Src, eblekar2Src, eblekar1Src, ],
   pizdoglyad: [pizdoglyadIdleSrc, pizdoglyadWalkSrc],
 };
