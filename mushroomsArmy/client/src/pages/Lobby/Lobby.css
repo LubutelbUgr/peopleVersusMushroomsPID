@@ -6,28 +6,46 @@
 @import url('https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&display=swap');
 
 .lobby {
-    position: fixed;
-    top: 0;
-    left: 0;
     width: 100%;
-    height: 100%;
+
+    overflow-x: hidden;
+    
+
+    font-size: var(--font-base);
+    font-family: 'Pixelify Sans', sans-serif;
+}
+
+.lobby__screen {
+    min-height: 100vh;
+
+    scroll-snap-align: start;
+
     display: flex;
     justify-content: center;
-    align-items: flex-start;  
-    background: url('../../assets/ui/lobby/lobby-background.png') center / cover no-repeat fixed;
-    font-family: 'Pixelify Sans', sans-serif;
-    /* padding-top: 150px;      */
-    /* padding-top: calc(150px * var(--lobby-scale));      */
+    align-items: flex-start;
+}
+
+.lobby__screen--main {
     padding-top: clamp(
         40px,
         calc(90px * var(--lobby-scale)),
         120px
     );
-    font-size: var(--font-base);
-    overflow-y: auto;
 
-    
+    background:
+        url('../../assets/ui/lobby/lobby-background.png')
+        center / cover
+        no-repeat;
 }
+
+.lobby__screen--credits {
+    background:
+        url('../../assets/ui/lobby/credits.png')
+        center / cover
+        no-repeat;
+}
+
+
 .lobby button {
     font-family: var(--font-main);
 }
@@ -35,24 +53,7 @@
     content: '';
     position: absolute;
     inset: 0;
-    background: rgba(10, 12, 20, 0.445);           
-    backdrop-filter: blur(2px);                   
-    -webkit-backdrop-filter: blur(2px);
     z-index: 2;
-}
-.lobby::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image: repeating-radial-gradient(
-    circle at 50% 50%, 
-    rgba(9, 14, 63, 0.168) 0%, 
-    transparent 10%
-  );
-  background-size: 4px 4px; 
-  opacity: 0.5;
-  pointer-events: none; 
-  z-index: 3;
 }
 
 .lobby__container {
