@@ -380,7 +380,7 @@ const Lobby: React.FC<{ setPage: (page: PAGES) => void }> = ({ setPage }) => {
                                     <div key={lobby.lobbyGuid} className="lobby__card">
                                         <div className="lobby__cardHeader">
                                             <h3 className="lobby__cardTitle">{lobby.lobbyName}</h3>
-                                            <span className="lobby__slots">{takenSlotsCount}/5</span>
+                                            <span className="lobby__slots"><span className="lobby__digit">{takenSlotsCount}</span>/<span className="lobby__digit">5</span></span>
                                         </div>
 
                                         <div className="lobby__cardActions">
